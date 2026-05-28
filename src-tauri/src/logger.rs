@@ -1,6 +1,7 @@
 use std::{io::Write, sync::OnceLock};
 
 use anyhow::Context;
+#[cfg(not(target_os = "android"))]
 use notify::{RecommendedWatcher, Watcher};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
@@ -11,17 +12,31 @@ use tracing_appender::{
 };
 use tracing_subscriber::{
     filter::{filter_fn, FilterExt, Targets},
-    fmt::{layer, time::LocalTime},
+    fmt::layer,
     layer::SubscriberExt,
     registry::LookupSpan,
     util::SubscriberInitExt,
     Layer, Registry,
 };
+#[cfg(not(target_os = "android"))]
+use tracing_subscriber::fmt::time::LocalTime;
+#[cfg(target_os = "android")]
+use tracing_subscriber::fmt::time::UtcTime;
 
 use crate::{
     events::LogEvent,
     extensions::{AnyhowErrorToStringChain, AppHandleExt},
 };
+
+#[cfg(not(target_os = "android"))]
+fn local_time() -> LocalTime {
+    LocalTime::rfc_3339()
+}
+
+#[cfg(target_os = "android")]
+fn local_time() -> UtcTime {
+    UtcTime::rfc_3339()
+}
 
 struct LogEventWriter {
     app: AppHandle,
@@ -64,14 +79,14 @@ pub fn init(app: &AppHandle) -> anyhow::Result<()> {
     // 输出到控制台
     let console_layer = layer()
         .with_writer(std::io::stdout)
-        .with_timer(LocalTime::rfc_3339())
+        .with_timer(local_time())
         .with_file(true)
         .with_line_number(true);
     // 发送到前端
     let log_event_writer = std::sync::Mutex::new(LogEventWriter { app: app.clone() });
     let log_event_layer = layer()
         .with_writer(log_event_writer)
-        .with_timer(LocalTime::rfc_3339())
+        .with_timer(local_time())
         .with_file(true)
         .with_line_number(true)
         .json()
@@ -97,6 +112,8 @@ pub fn init(app: &AppHandle) -> anyhow::Result<()> {
             Ok(())
         })
     });
+
+    #[cfg(not(target_os = "android"))]
     tauri::async_runtime::spawn(file_log_watcher(app.clone()));
 
     Ok(())
@@ -124,7 +141,7 @@ where
     if !enable_file_logger {
         let sink_layer = layer()
             .with_writer(std::io::sink)
-            .with_timer(LocalTime::rfc_3339())
+            .with_timer(local_time())
             .with_ansi(false)
             .with_file(true)
             .with_line_number(true);
@@ -140,13 +157,14 @@ where
     let (non_blocking_appender, guard) = tracing_appender::non_blocking(file_appender);
     let file_layer = layer()
         .with_writer(non_blocking_appender)
-        .with_timer(LocalTime::rfc_3339())
+        .with_timer(local_time())
         .with_ansi(false)
         .with_file(true)
         .with_line_number(true);
     Ok((Box::new(file_layer), Some(guard)))
 }
 
+#[cfg(not(target_os = "android"))]
 async fn file_log_watcher(app: AppHandle) {
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
 

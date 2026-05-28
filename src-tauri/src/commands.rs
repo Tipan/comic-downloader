@@ -6,6 +6,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Context};
 use indexmap::IndexMap;
 use tauri::AppHandle;
+#[cfg(not(target_os = "android"))]
 use tauri_plugin_opener::OpenerExt;
 use tauri_specta::Event;
 use tokio::sync::Semaphore;
@@ -512,10 +513,18 @@ pub async fn update_downloaded_comics(app: AppHandle) -> CommandResult<()> {
 #[tauri::command(async)]
 #[specta::specta]
 pub fn show_path_in_file_manager(app: AppHandle, path: &str) -> CommandResult<()> {
-    app.opener()
-        .reveal_item_in_dir(path)
-        .context(format!("在文件管理器中打开`{path}`失败"))
-        .map_err(|err| CommandError::from("在文件管理器中打开失败", err))?;
+    #[cfg(not(target_os = "android"))]
+    {
+        app.opener()
+            .reveal_item_in_dir(path)
+            .context(format!("在文件管理器中打开`{path}`失败"))
+            .map_err(|err| CommandError::from("在文件管理器中打开失败", err))?;
+    }
+    #[cfg(target_os = "android")]
+    {
+        let _ = &app;
+        let _ = path;
+    }
     Ok(())
 }
 

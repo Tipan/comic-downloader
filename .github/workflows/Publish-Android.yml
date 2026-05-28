@@ -1,0 +1,128 @@
+name: "publish-android"
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.get_version.outputs.VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version number
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+  android-build:
+    needs: get-version
+    env:
+      VERSION: ${{ needs.get-version.outputs.VERSION }}
+    outputs:
+      VERSION: ${{ env.VERSION }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set NDK environment variable
+        run: echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+
+      - name: Install Android Platform and Build Tools
+        run: |
+          sdkmanager "platforms;android-36"
+          sdkmanager "build-tools;36.0.0"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Initialize Tauri Android project
+        run: pnpm tauri android init --ci
+
+      - name: Build Android APK
+        run: pnpm tauri android build --apk
+
+      - name: Build Android AAB
+        run: pnpm tauri android build --aab
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Copy APK to release assets
+        run: |
+          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
+          for f in artifacts/*.apk; do
+            ext="${f##*.}"
+            base="${f%.*}"
+            mv "$f" "${base}-${{ env.VERSION }}.${ext}"
+          done
+
+      - name: Copy AAB to release assets
+        run: |
+          find src-tauri/gen/android/app/build/outputs/bundle -name "*.aab" -exec cp {} artifacts/jmcomic-downloader_${{ env.VERSION }}_android.aab \;
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-assets
+          path: artifacts/*
+
+  create-release:
+    needs: [android-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Android assets
+        uses: actions/download-artifact@v4
+        with:
+          name: android-assets
+          path: artifacts/android
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Android App v${{ needs.android-build.outputs.VERSION }}
+          body: |
+            Take a look at the assets to download and install this app.
+          files: |
+            artifacts/android/*
+          draft: true
+          prerelease: false

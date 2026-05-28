@@ -27,9 +27,9 @@ specta = { version = "2.0.0-rc", features = ["serde_json"] }
 tauri-specta = { version = "2.0.0-rc", features = ["derive", "typescript"] }
 specta-typescript = { version = "0.0.7" }
 
-reqwest = { version = "0.12.15", features = ["json", "cookies"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["json", "cookies", "rustls-tls"] }
 reqwest-retry = { version = "0.6.1" }
-reqwest-middleware = { version = "0.3.3 " }
+reqwest-middleware = { version = "0.3.3" }
 
 base64 = { version = "0.22" }
 md5 = { version = "0.7.0" }
@@ -46,12 +46,15 @@ rayon = { version = "1.10.0" }
 uuid = { version = "1.15.1", features = ["v4"] }
 zip = { version = "2.2.3", default-features = false }
 tracing = { version = "0.1.41" }
-tracing-subscriber = { version = "0.3.19", features = ["json", "time", "local-time"] }
+tracing-subscriber = { version = "0.3.19", features = ["json", "time"] }
 tracing-appender = { version = "0.2.3" }
-notify = { version = "8.0.0" }
 strfmt = { version = "0.2.4" }
 walkdir = { version = "2.5.0" }
 indexmap = { version = "2.10.0" }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+notify = { version = "8.0.0" }
+tracing-subscriber = { version = "0.3.19", features = ["local-time"] }
 
 [profile.release]
 strip = true
