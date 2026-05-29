@@ -132,11 +132,53 @@ jobs:
           echo "=== Tail of build.gradle.kts ==="
           tail -30 src-tauri/gen/android/app/build.gradle.kts
 
+      - name: Sanity check tauri CLI
+        run: |
+          set -x
+          pnpm tauri --version
+          pnpm tauri android --help || true
+          pnpm tauri android build --help || true
+
       - name: Build Android APK
-        run: pnpm tauri android build --apk
+        id: build_apk
+        run: |
+          set -x
+          mkdir -p logs
+          # Capture both streams so the artifact upload (always) can show the
+          # real error even when this step fails.
+          pnpm tauri android build --apk -v 2>&1 | tee logs/apk.log
+          # Preserve pipefail-style behavior
+          exit ${PIPESTATUS[0]}
 
       - name: Build Android AAB
-        run: pnpm tauri android build --aab
+        id: build_aab
+        if: success() || steps.build_apk.outcome == 'failure'
+        run: |
+          set -x
+          mkdir -p logs
+          pnpm tauri android build --aab -v 2>&1 | tee logs/aab.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Dump diagnostics on failure
+        if: always()
+        run: |
+          mkdir -p logs
+          echo "=== build.gradle.kts ==="
+          cat src-tauri/gen/android/app/build.gradle.kts > logs/build.gradle.kts.txt 2>&1 || true
+          echo "=== tauri.conf.json ==="
+          cat src-tauri/tauri.conf.json > logs/tauri.conf.json.txt 2>&1 || true
+          echo "=== android dir tree (3 levels) ==="
+          find src-tauri/gen/android -maxdepth 3 > logs/android-tree.txt 2>&1 || true
+          echo "=== apk outputs ==="
+          find src-tauri/gen/android/app/build/outputs -type f > logs/apk-outputs.txt 2>&1 || true
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-logs
+          path: logs/
+          if-no-files-found: ignore
 
       - name: Get version
         id: get_version
