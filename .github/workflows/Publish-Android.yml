@@ -61,6 +61,19 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+      - name: Bring Cargo.lock to latest 2.x of Tauri crates
+        # The committed Cargo.lock pins tauri 2.5.x while the freshly-resolved
+        # NPM tree picks tauri-apps/api 2.11.x. Tauri's CLI rejects builds when
+        # major.minor differs between Rust crate and NPM package. Update the
+        # relevant crates so they match the NPM versions just installed.
+        working-directory: src-tauri
+        run: |
+          cargo update -p tauri \
+            -p tauri-build \
+            -p tauri-plugin-dialog \
+            -p tauri-plugin-opener || true
+          cargo update || true
+
       - name: Debug - Check environment
         run: |
           echo "=== Tauri CLI ==="
