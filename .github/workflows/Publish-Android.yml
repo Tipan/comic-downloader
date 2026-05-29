@@ -34,7 +34,6 @@ jobs:
       - name: Set Android environment variables
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -56,54 +55,33 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      - name: Upgrade Tauri CLI to latest stable
+        run: pnpm add -D @tauri-apps/cli@latest
+
       - name: Install frontend dependencies
         run: pnpm install
-
-      - name: Debug - Check tools
-        run: |
-          echo "=== Node ==="
-          node --version
-          echo "=== pnpm ==="
-          pnpm --version
-          echo "=== Rust ==="
-          rustc --version
-          echo "=== Cargo ==="
-          cargo --version
-          echo "=== Tauri CLI ==="
-          pnpm tauri --version || echo "tauri CLI not found"
-          echo "=== ANDROID_HOME ==="
-          echo $ANDROID_HOME
-          echo "=== ANDROID_NDK_HOME ==="
-          echo $ANDROID_NDK_HOME
-          echo "=== NDK exists ==="
-          ls -la $ANDROID_NDK_HOME || echo "NDK dir not found"
-          echo "=== Rust targets ==="
-          rustup target list --installed
 
       - name: Build frontend
         run: pnpm build
 
-      - name: Initialize Tauri Android project
-        run: pnpm tauri android init || pnpm tauri android init --ci || true
-
-      - name: Debug - List generated Android files
+      - name: Debug - Check environment
         run: |
-          echo "=== gen/android ==="
-          ls -la src-tauri/gen/android/ || echo "No gen/android directory"
-          echo "=== AndroidManifest.xml ==="
-          cat src-tauri/gen/android/app/src/main/AndroidManifest.xml || echo "No AndroidManifest.xml"
-          echo "=== build.gradle.kts ==="
-          cat src-tauri/gen/android/app/build.gradle.kts || echo "No build.gradle.kts"
+          echo "=== Tauri CLI ==="
+          pnpm tauri --version
+          echo "=== ANDROID_HOME ==="
+          echo $ANDROID_HOME
+          echo "=== ANDROID_NDK_HOME ==="
+          echo $ANDROID_NDK_HOME
+          ls -la $ANDROID_NDK_HOME || echo "NDK dir not found"
+
+      - name: Initialize Tauri Android project
+        run: pnpm tauri android init
+
+      - name: Debug - Verify Android project
+        run: ls -la src-tauri/gen/android/
 
       - name: Build Android APK
-        run: pnpm tauri android build --apk 2>&1 | tee build-apk.log
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-apk-log
-          path: build-apk.log
+        run: pnpm tauri android build --apk
 
       - name: Build Android AAB
         run: pnpm tauri android build --aab
