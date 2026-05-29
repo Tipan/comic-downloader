@@ -56,7 +56,7 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: pnpm install
+        run: rm -f pnpm-lock.yaml && pnpm install
 
       - name: Build frontend
         run: pnpm build
