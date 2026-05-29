@@ -55,9 +55,6 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      - name: Upgrade Tauri CLI to latest stable
-        run: pnpm add -D @tauri-apps/cli@latest
-
       - name: Install frontend dependencies
         run: pnpm install
 
