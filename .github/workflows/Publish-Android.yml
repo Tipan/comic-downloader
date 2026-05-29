@@ -77,6 +77,61 @@ jobs:
       - name: Debug - Verify Android project
         run: ls -la src-tauri/gen/android/
 
+      - name: Generate release signing keystore
+        run: |
+          KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          keytool -genkeypair -noprompt -v \
+            -keystore "$KEYSTORE_PATH" \
+            -alias release \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=jmcomic-downloader, O=tauri, C=US"
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> $GITHUB_ENV
+
+      - name: Configure Android release signing
+        run: |
+          # keystore.properties is read by the gradle snippet appended below.
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          keyAlias=release
+          password=android
+          storeFile=${KEYSTORE_PATH}
+          EOF
+
+          # Append signing setup to the generated build.gradle.kts. Tauri's
+          # default template does NOT configure release signing, which leaves
+          # APKs unsigned (won't install) and AAB builds failing. We use
+          # fully-qualified java.util.Properties / java.io.FileInputStream so
+          # we don't need to inject imports at the top of the file.
+          cat >> src-tauri/gen/android/app/build.gradle.kts <<'GRADLE_EOF'
+
+          val keystorePropertiesFile = rootProject.file("keystore.properties")
+          val keystoreProperties = java.util.Properties()
+          if (keystorePropertiesFile.exists()) {
+              keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+          }
+
+          android {
+              signingConfigs {
+                  create("release") {
+                      keyAlias = keystoreProperties["keyAlias"] as String
+                      keyPassword = keystoreProperties["password"] as String
+                      storeFile = file(keystoreProperties["storeFile"] as String)
+                      storePassword = keystoreProperties["password"] as String
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          GRADLE_EOF
+
+          echo "=== keystore.properties ==="
+          cat src-tauri/gen/android/keystore.properties
+          echo "=== Tail of build.gradle.kts ==="
+          tail -30 src-tauri/gen/android/app/build.gradle.kts
+
       - name: Build Android APK
         run: pnpm tauri android build --apk
 
@@ -94,16 +149,20 @@ jobs:
 
       - name: Copy APK to release assets
         run: |
-          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
+          # Tauri produces multiple per-arch APKs plus a universal one. Copy
+          # signed release APKs only (skip unsigned/debug variants if any).
+          find src-tauri/gen/android/app/build/outputs/apk -name "*-release.apk" ! -name "*-unsigned*" -exec cp {} artifacts/ \;
           for f in artifacts/*.apk; do
             ext="${f##*.}"
             base="${f%.*}"
             mv "$f" "${base}-${{ steps.get_version.outputs.VERSION }}.${ext}"
           done
+          ls -la artifacts/
 
       - name: Copy AAB to release assets
         run: |
           find src-tauri/gen/android/app/build/outputs/bundle -name "*.aab" -exec cp {} artifacts/jmcomic-downloader_${{ steps.get_version.outputs.VERSION }}_android.aab \;
+          ls -la artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
