@@ -12,7 +12,7 @@ use tracing_appender::{
 };
 use tracing_subscriber::{
     filter::{filter_fn, FilterExt, Targets},
-    fmt::layer,
+    fmt::{layer, time::FormatTime},
     layer::SubscriberExt,
     registry::LookupSpan,
     util::SubscriberInitExt,
@@ -29,12 +29,12 @@ use crate::{
 };
 
 #[cfg(not(target_os = "android"))]
-fn local_time() -> LocalTime {
+fn local_time() -> impl FormatTime + Clone + Send + Sync + 'static {
     LocalTime::rfc_3339()
 }
 
 #[cfg(target_os = "android")]
-fn local_time() -> UtcTime {
+fn local_time() -> impl FormatTime + Clone + Send + Sync + 'static {
     UtcTime::rfc_3339()
 }
 
