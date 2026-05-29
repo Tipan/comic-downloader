@@ -108,24 +108,25 @@ jobs:
 
           # Append signing setup to the generated build.gradle.kts. Tauri's
           # default template does NOT configure release signing, which leaves
-          # APKs unsigned (won't install) and AAB builds failing. We use
-          # fully-qualified java.util.Properties / java.io.FileInputStream so
-          # we don't need to inject imports at the top of the file.
+          # APKs unsigned (won't install) and AAB builds failing. Reuse the
+          # `Properties` symbol that the template already imports, and use
+          # File.inputStream() to avoid needing extra imports at top of file.
           cat >> src-tauri/gen/android/app/build.gradle.kts <<'GRADLE_EOF'
 
           val keystorePropertiesFile = rootProject.file("keystore.properties")
-          val keystoreProperties = java.util.Properties()
-          if (keystorePropertiesFile.exists()) {
-              keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+          val keystoreProperties = Properties().apply {
+              if (keystorePropertiesFile.exists()) {
+                  keystorePropertiesFile.inputStream().use { load(it) }
+              }
           }
 
           android {
               signingConfigs {
                   create("release") {
-                      keyAlias = keystoreProperties["keyAlias"] as String
-                      keyPassword = keystoreProperties["password"] as String
-                      storeFile = file(keystoreProperties["storeFile"] as String)
-                      storePassword = keystoreProperties["password"] as String
+                      keyAlias = keystoreProperties.getProperty("keyAlias")
+                      keyPassword = keystoreProperties.getProperty("password")
+                      storeFile = file(keystoreProperties.getProperty("storeFile"))
+                      storePassword = keystoreProperties.getProperty("password")
                   }
               }
               buildTypes {
