@@ -2,6 +2,11 @@ name: "publish-android"
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/Publish-Android.yml"
 
 jobs:
   android-build:
