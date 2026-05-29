@@ -2,9 +2,6 @@ name: "publish-android"
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
 
 jobs:
   android-build:
@@ -44,12 +41,6 @@ jobs:
         with:
           version: 9.5.0
 
-      - name: Install frontend dependencies
-        run: pnpm install
-
-      - name: Build frontend
-        run: pnpm build
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -60,13 +51,35 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      - name: Debug - Check tauri CLI
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Debug - Check tools
         run: |
-          pnpm tauri --version
-          pnpm tauri info || true
+          echo "=== Node ==="
+          node --version
+          echo "=== pnpm ==="
+          pnpm --version
+          echo "=== Rust ==="
+          rustc --version
+          echo "=== Cargo ==="
+          cargo --version
+          echo "=== Tauri CLI ==="
+          pnpm tauri --version || echo "tauri CLI not found"
+          echo "=== ANDROID_HOME ==="
+          echo $ANDROID_HOME
+          echo "=== ANDROID_NDK_HOME ==="
+          echo $ANDROID_NDK_HOME
+          echo "=== NDK exists ==="
+          ls -la $ANDROID_NDK_HOME || echo "NDK dir not found"
+          echo "=== Rust targets ==="
+          rustup target list --installed
+
+      - name: Build frontend
+        run: pnpm build
 
       - name: Initialize Tauri Android project
-        run: pnpm tauri android init --ci
+        run: pnpm tauri android init || pnpm tauri android init --ci || true
 
       - name: Debug - List generated Android files
         run: |
@@ -74,9 +87,18 @@ jobs:
           ls -la src-tauri/gen/android/ || echo "No gen/android directory"
           echo "=== AndroidManifest.xml ==="
           cat src-tauri/gen/android/app/src/main/AndroidManifest.xml || echo "No AndroidManifest.xml"
+          echo "=== build.gradle.kts ==="
+          cat src-tauri/gen/android/app/build.gradle.kts || echo "No build.gradle.kts"
 
       - name: Build Android APK
-        run: pnpm tauri android build --apk
+        run: pnpm tauri android build --apk 2>&1 | tee build-apk.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-log
+          path: build-apk.log
 
       - name: Build Android AAB
         run: pnpm tauri android build --aab
@@ -114,6 +136,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: v${{ steps.get_version.outputs.VERSION }}-android
           name: Android App v${{ steps.get_version.outputs.VERSION }}
           body: |
             Take a look at the assets to download and install this app.
