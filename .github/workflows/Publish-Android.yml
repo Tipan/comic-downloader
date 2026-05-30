@@ -111,6 +111,11 @@ jobs:
           # APKs unsigned (won't install) and AAB builds failing. Reuse the
           # `Properties` symbol that the template already imports, and use
           # File.inputStream() to avoid needing extra imports at top of file.
+          #
+          # Also disable R8/ProGuard minification on release: Tauri's default
+          # `proguard-rules.pro` does not preserve everything Wry/JNI/Kotlin
+          # coroutines need, and stripped classes are the most common cause
+          # of black-screen on Android. Size cost is acceptable for now.
           cat >> src-tauri/gen/android/app/build.gradle.kts <<'GRADLE_EOF'
 
           val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -131,6 +136,8 @@ jobs:
               }
               buildTypes {
                   getByName("release") {
+                      isMinifyEnabled = false
+                      isShrinkResources = false
                       signingConfig = signingConfigs.getByName("release")
                   }
               }
