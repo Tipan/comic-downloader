@@ -7,6 +7,11 @@ on:
       - main
     paths:
       - ".github/workflows/Publish-Android.yml"
+      - "src-tauri/**"
+      - "src/**"
+      - "package.json"
+      - "index.html"
+      - "vite.config.ts"
 
 jobs:
   android-build:
