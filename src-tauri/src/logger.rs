@@ -148,6 +148,10 @@ where
         return Ok((Box::new(sink_layer), None));
     }
     let logs_dir = logs_dir(app).context("获取日志目录失败")?;
+    std::fs::create_dir_all(&logs_dir).context(format!(
+        "创建日志目录失败: {}",
+        logs_dir.display()
+    ))?;
     let file_appender = RollingFileAppender::builder()
         .filename_prefix("jmcomic-downloader")
         .filename_suffix("log")
