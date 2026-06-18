@@ -192,24 +192,28 @@ jobs:
             # 取应用 PID，专门抓该进程的 logcat(含 WebView console / Rust stderr)
             APID=$(timeout 15 adb shell pidof com.lanyeeee.jmcomic_downloader 2>/dev/null | tr -d '\r' | awk '{print $1}')
             echo "app pid=$APID" | tee logs/app-pid.log
-            if [ -z "$APID" ]; then
-              # 退而求其次：进程可能已死，抓全量里和包名相关的
-              APID=""
-            fi
 
             echo "=== 抓取应用进程 logcat (pid=$APID) ===" | tee logs/logcat-app-pid.log
             if [ -n "$APID" ]; then
               timeout 60 adb logcat -d -v time --pid="$APID" 2>&1 | tee -a logs/logcat-app-pid.log
+            else
+              echo "(app process not running — likely crashed on startup)" | tee -a logs/logcat-app-pid.log
             fi
 
-            echo "=== 抓取全量 logcat (按关键词过滤) ===" | tee logs/logcat-app.log
-            timeout 90 adb logcat -d -v threadtime 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|WebView|ERR_|console" | tee -a logs/logcat-app.log
+            echo "=== 抓取 crash 缓冲区 (Java 崩溃/native crash 都在这里) ===" | tee logs/logcat-crash.log
+            timeout 60 adb logcat -d -v time -b crash 2>&1 | tee -a logs/logcat-crash.log
 
-            echo "=== 抓取 crash 相关 (*:E 且含 jmcomic/AndroidRuntime/panic) ===" | tee logs/logcat-error.log
-            timeout 60 adb logcat -d -v time *:E 2>&1 | grep -iE "jmcomic|AndroidRuntime|panic|rust|tauri|FATAL" | tee -a logs/logcat-error.log
+            echo "=== 抓取全缓冲区 logcat (main+system+crash，按关键词过滤) ===" | tee logs/logcat-app.log
+            timeout 90 adb logcat -d -v threadtime -b main -b system -b crash 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|FATAL EXCEPTION|signal|abort|tombstone" | tee -a logs/logcat-app.log
+
+            echo "=== 抓取 *:E 且含 jmcomic/FATAL ===" | tee logs/logcat-error.log
+            timeout 60 adb logcat -d -v time -b main -b system -b crash *:E 2>&1 | grep -iE "jmcomic|AndroidRuntime|panic|rust|tauri|FATAL|signal" | tee -a logs/logcat-error.log
+
+            echo "=== dropbox 崩溃记录 ===" | tee logs/dropbox.log
+            timeout 30 adb shell dumpsys dropbox --print 2>&1 | grep -iE "jmcomic|crash|anr|data_app_crash|data_app_native_crash" | tail -80 | tee -a logs/dropbox.log
 
             echo "=== 全量 logcat 末尾 300 行(兜底) ===" | tee logs/logcat-full.log
-            timeout 60 adb logcat -d -v time 2>&1 | tail -300 | tee -a logs/logcat-full.log
+            timeout 60 adb logcat -d -v time -b main -b system -b crash 2>&1 | tail -300 | tee -a logs/logcat-full.log
 
             echo "=== 当前 Activity 栈 ===" | tee logs/activity-stack.log
             timeout 30 adb shell dumpsys activity activities 2>&1 | tee logs/activity-stack-full.log
@@ -244,6 +248,16 @@ jobs:
             echo "### logcat-app-pid.log (应用进程专属 logcat，含 WebView console / Rust stderr)"
             echo '```'
             tail -400 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### logcat-crash.log (crash 缓冲区，Java/native 崩溃)"
+            echo '```'
+            tail -400 logs/logcat-crash.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### dropbox.log (dropbox 崩溃/ANR 记录)"
+            echo '```'
+            cat logs/dropbox.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### app-pid.log"
