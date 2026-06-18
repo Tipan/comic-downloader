@@ -165,17 +165,21 @@ jobs:
             # 模拟器/安装/启动任何一环失败都会让 script 提前退出，logs/ 全空。
             set +e
             mkdir -p logs
+
             echo "=== adb devices ===" | tee logs/adb-devices.log
             adb devices | tee -a logs/adb-devices.log
 
-            echo "等待 boot 完成..." | tee logs/boot.log
-            adb wait-for-device 2>&1 | tee -a logs/boot.log
-            for i in $(seq 1 60); do
+            # 等待设备上线(不等 sys.boot_completed，那玩意儿在 CI 模拟器上经常不置 1)
+            adb wait-for-device 2>&1 | tee logs/boot.log
+            echo "device online, waiting for sys.boot_completed (best effort)..." | tee -a logs/boot.log
+            for i in $(seq 1 45); do
               BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-              echo "boot_completed=$BOOT" | tee -a logs/boot.log
-              if [ "$BOOT" = "1" ]; then echo "boot 完成" | tee -a logs/boot.log; break; fi
+              echo "[$i] boot_completed=$BOOT" | tee -a logs/boot.log
+              if [ "$BOOT" = "1" ]; then break; fi
               sleep 2
             done
+            # 不管 boot_completed 是否为 1，都继续往下走，多等一会儿让系统稳定
+            sleep 10
 
             echo "=== 安装 APK ===" | tee logs/install.log
             adb install -r -t "${{ steps.apk.outputs.apk_path }}" 2>&1 | tee -a logs/install.log
