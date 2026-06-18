@@ -1,0 +1,259 @@
+name: "android-smoke-test"
+
+# 仅用于在 GitHub 提供的带 KVM 的 ubuntu runner 上启动 Android 模拟器，
+# 安装构建产物 APK 并抓取 logcat，定位「构建成功但运行白屏」的真实运行时报错。
+# 不发布任何产物，只把日志作为 artifact + commit comment 公开发布，便于无登录读取。
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/Android-SmokeTest.yml"
+      - "src-tauri/**"
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "vite.config.ts"
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and Platform
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+          # 模拟器系统镜像（x86_64，runner 支持 KVM 硬件加速）
+          sdkmanager "system-images;android-35;google_apis;x86_64"
+          yes | sdkmanager --licenses || true
+
+      - name: Set Android environment variables
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> $GITHUB_ENV
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0777"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.5.0
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: rm -f pnpm-lock.yaml && pnpm install
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Bring Cargo.lock to latest compatible versions
+        working-directory: src-tauri
+        run: rm -f Cargo.lock
+
+      - name: Initialize Tauri Android project
+        run: pnpm tauri android init
+
+      - name: Generate debug signing keystore (reuse release-style setup)
+        run: |
+          KEYSTORE_PATH="$RUNNER_TEMP/debug.jks"
+          keytool -genkeypair -noprompt -v \
+            -keystore "$KEYSTORE_PATH" \
+            -alias debug \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=jmcomic-downloader, O=tauri, C=US"
+
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          keyAlias=debug
+          password=android
+          storeFile=${KEYSTORE_PATH}
+          EOF
+
+          cat >> src-tauri/gen/android/app/build.gradle.kts <<'GRADLE_EOF'
+
+          import java.util.Properties
+          val keystorePropertiesFile = rootProject.file("keystore.properties")
+          val keystoreProperties = Properties().apply {
+              if (keystorePropertiesFile.exists()) {
+                  keystorePropertiesFile.inputStream().use { load(it) }
+              }
+          }
+          android {
+              signingConfigs {
+                  create("release") {
+                      keyAlias = keystoreProperties.getProperty("keyAlias")
+                      keyPassword = keystoreProperties.getProperty("password")
+                      storeFile = file(keystoreProperties.getProperty("storeFile"))
+                      storePassword = keystoreProperties.getProperty("password")
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      isMinifyEnabled = false
+                      isShrinkResources = false
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          GRADLE_EOF
+
+      - name: Build Android APK (x86_64 only, debug)
+        run: |
+          set -x
+          mkdir -p logs
+          # 只构建 x86_64 debug APK，模拟器用，构建快
+          pnpm tauri android build --apk --target x86_64-linux-android -v 2>&1 | tee logs/build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Locate built APK
+        id: apk
+        run: |
+          set -x
+          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | tee logs/apk-list.txt
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -1)
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK"
+
+      - name: Run Android Emulator and capture logcat
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          target: google_apis
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: |
+            set -x
+            mkdir -p logs
+            # 等待模拟器完全启动
+            adb wait-for-device
+            echo "等待 boot 完成..."
+            for i in $(seq 1 60); do
+              BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+              if [ "$BOOT" = "1" ]; then echo "boot 完成"; break; fi
+              sleep 2
+            done
+
+            echo "=== 安装 APK ==="
+            adb install -r -t "${{ steps.apk.outputs.apk_path }}" 2>&1 | tee logs/install.log
+
+            # 清空旧 logcat
+            adb logcat -c
+
+            echo "=== 启动应用主 Activity ==="
+            # 包名来自 tauri.conf.json 的 identifier
+            PKG="com.lanyeeee.jmcomic_downloader"
+            # Tauri Android 的主 Activity 是 MainActivity
+            adb shell am start -n "$PKG/com.tauri.MainActivity" 2>&1 | tee logs/start.log || \
+              adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 2>&1 | tee logs/start.log
+
+            echo "=== 等待 30 秒收集日志 ==="
+            sleep 30
+
+            echo "=== 抓取全量 logcat ==="
+            adb logcat -d -v time 2>&1 | tee logs/logcat-full.log
+            echo "=== 抓取 crash 相关 ==="
+            adb logcat -d -v time *:E 2>&1 | tee logs/logcat-error.log
+            echo "=== 抓取 Tauri/Rust/WebView 相关 ==="
+            adb logcat -d -v time 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage" | tee logs/logcat-app.log || true
+
+            echo "=== 当前 Activity 栈（判断是否真的起来了）==="
+            adb shell dumpsys activity activities 2>&1 | grep -iE "mResumedActivity|topResumedActivity|jmcomic" | tee logs/activity-stack.log || true
+
+            echo "=== 截图 ==="
+            adb shell screencap -p /sdcard/screen.png
+            adb pull /sdcard/screen.png logs/screen.png || true
+
+      - name: Upload smoke-test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-smoke-logs
+          path: logs/
+          if-no-files-found: ignore
+
+      - name: Post smoke-test logcat as commit comment (publicly readable)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(mktemp)
+          {
+            echo "## Android smoke-test 运行时日志"
+            echo ""
+            echo "构建产物在模拟器上启动后抓取的 logcat，用于定位白屏根因。"
+            echo ""
+            echo "### logcat-app.log (Tauri/Rust/WebView/panic 相关)"
+            echo '```'
+            tail -300 logs/logcat-app.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### logcat-error.log (*:E)"
+            echo '```'
+            tail -200 logs/logcat-error.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### install.log"
+            echo '```'
+            cat logs/install.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### start.log"
+            echo '```'
+            cat logs/start.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### activity-stack.log"
+            echo '```'
+            cat logs/activity-stack.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### build.log 末尾 50 行"
+            echo '```'
+            tail -50 logs/build.log 2>/dev/null || echo "(无)"
+            echo '```'
+          } > "$BODY"
+
+          head -c 60000 "$BODY" > "${BODY}.trim"
+          jq -Rs '{body: .}' < "${BODY}.trim" > "${BODY}.json"
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            --data-binary "@${BODY}.json" | head -20

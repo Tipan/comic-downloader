@@ -9,6 +9,40 @@
 
   <body>
     <div id="app"></div>
+    <!--
+      前端运行时错误捕获层。
+      在 Android 真机/模拟器上白屏时，把 JS 异常、未捕获的 Promise rejection
+      以及加载失败全部打到 console（Tauri 会转发到 logcat），并写入 #app 让屏幕
+      直接显示出错信息而非空白，方便定位白屏根因。
+    -->
+    <script>
+      (function () {
+        function report(label, detail) {
+          var msg = '[' + label + '] ' + (detail && detail.message ? detail.message : detail);
+          try { console.error(msg); } catch (e) {}
+          try {
+            var el = document.getElementById('app');
+            if (el) {
+              el.insertAdjacentHTML(
+                'beforeend',
+                '<pre style="white-space:pre-wrap;word-break:break-all;padding:8px;font-size:12px;color:red">' +
+                  String(msg).replace(/[&<>]/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
+                  }) +
+                  '</pre>'
+              );
+            }
+          } catch (e) {}
+        }
+        window.addEventListener('error', function (e) {
+          report('window.error', e.error || e.message || e);
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          report('unhandledrejection', e.reason);
+        });
+        window.__bootError = report;
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

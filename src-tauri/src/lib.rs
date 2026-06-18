@@ -29,9 +29,32 @@ fn generate_context() -> tauri::Context<Wry> {
     tauri::generate_context!()
 }
 
+/// 安装 panic hook：把 panic 信息打到 stderr/stdout（Android 上会被 logcat 捕获），
+/// 这样白屏/闪退时能在 logcat 里看到真正的 Rust 崩溃原因，而不是只剩一个空进程。
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("<non-string panic payload>");
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "<unknown location>".to_string());
+        // Android logcat 会捕获 stdout/stderr（标签通常为 Rust 的 tag 或 app tag）。
+        // 用多行 + 明显前缀，方便在 logcat 里 grep。
+        eprintln!("\n==== PANIC ====\nlocation: {location}\npayload: {payload}\nbacktrace below\n================\n");
+        default_hook(info);
+    }));
+}
+
 // TODO: 添加Panic Doc
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    install_panic_hook();
     let builder = tauri_specta::Builder::<Wry>::new()
         .commands(tauri_specta::collect_commands![
             greet,
