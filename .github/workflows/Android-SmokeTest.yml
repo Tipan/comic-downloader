@@ -105,9 +105,9 @@ jobs:
 
           cat >> src-tauri/gen/android/app/build.gradle.kts <<'GRADLE_EOF'
 
-          // 注意：Kotlin DSL 不允许 import 出现在文件中部，所以用全限定名 java.util.Properties
+          // Tauri 生成的模板顶部已 import java.util.Properties，这里直接复用，不要重复 import
           val keystorePropertiesFile = rootProject.file("keystore.properties")
-          val keystoreProperties = java.util.Properties().apply {
+          val keystoreProperties = Properties().apply {
               if (keystorePropertiesFile.exists()) {
                   keystorePropertiesFile.inputStream().use { load(it) }
               }
