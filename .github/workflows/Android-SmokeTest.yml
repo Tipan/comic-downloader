@@ -178,8 +178,8 @@ jobs:
             timeout 15 adb logcat -c 2>&1 | tee -a logs/install.log
 
             echo "=== 启动应用主 Activity ===" | tee logs/start.log
-            # 直接用字面量包名，避免变量展开问题。Tauri 生成的 MainActivity 在 com.tauri 包下。
-            timeout 30 adb shell am start -n "com.lanyeeee.jmcomic_downloader/com.tauri.MainActivity" 2>&1 | tee -a logs/start.log
+            # 正确的 Activity component(由 resolve-activity 确认): com.lanyeeee.jmcomic_downloader/.MainActivity
+            timeout 30 adb shell am start -n "com.lanyeeee.jmcomic_downloader/.MainActivity" 2>&1 | tee -a logs/start.log
             echo "am start exit=$?" | tee -a logs/start.log
             # monkey 作为兜底启动方式(通过 LAUNCHER intent)
             timeout 30 adb shell monkey -p "com.lanyeeee.jmcomic_downloader" -c "android.intent.category.LAUNCHER" 1 2>&1 | tee -a logs/start.log
