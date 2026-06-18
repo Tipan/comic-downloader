@@ -189,12 +189,27 @@ jobs:
             echo "=== 等待 25 秒收集日志 ===" | tee logs/wait.log
             sleep 25
 
-            echo "=== 抓取全量 logcat ===" | tee logs/logcat-full.log
-            timeout 60 adb logcat -d -v time 2>&1 | tee -a logs/logcat-full.log
-            echo "=== 抓取 crash 相关 (*:E) ===" | tee logs/logcat-error.log
-            timeout 60 adb logcat -d -v time *:E 2>&1 | tee -a logs/logcat-error.log
-            echo "=== 抓取 Tauri/Rust/WebView 相关 ===" | tee logs/logcat-app.log
-            timeout 60 adb logcat -d -v time 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage|==== PANIC ====" | tee -a logs/logcat-app.log
+            # 取应用 PID，专门抓该进程的 logcat(含 WebView console / Rust stderr)
+            APID=$(timeout 15 adb shell pidof com.lanyeeee.jmcomic_downloader 2>/dev/null | tr -d '\r' | awk '{print $1}')
+            echo "app pid=$APID" | tee logs/app-pid.log
+            if [ -z "$APID" ]; then
+              # 退而求其次：进程可能已死，抓全量里和包名相关的
+              APID=""
+            fi
+
+            echo "=== 抓取应用进程 logcat (pid=$APID) ===" | tee logs/logcat-app-pid.log
+            if [ -n "$APID" ]; then
+              timeout 60 adb logcat -d -v time --pid="$APID" 2>&1 | tee -a logs/logcat-app-pid.log
+            fi
+
+            echo "=== 抓取全量 logcat (按关键词过滤) ===" | tee logs/logcat-app.log
+            timeout 90 adb logcat -d -v threadtime 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|WebView|ERR_|console" | tee -a logs/logcat-app.log
+
+            echo "=== 抓取 crash 相关 (*:E 且含 jmcomic/AndroidRuntime/panic) ===" | tee logs/logcat-error.log
+            timeout 60 adb logcat -d -v time *:E 2>&1 | grep -iE "jmcomic|AndroidRuntime|panic|rust|tauri|FATAL" | tee -a logs/logcat-error.log
+
+            echo "=== 全量 logcat 末尾 300 行(兜底) ===" | tee logs/logcat-full.log
+            timeout 60 adb logcat -d -v time 2>&1 | tail -300 | tee -a logs/logcat-full.log
 
             echo "=== 当前 Activity 栈 ===" | tee logs/activity-stack.log
             timeout 30 adb shell dumpsys activity activities 2>&1 | tee logs/activity-stack-full.log
@@ -226,12 +241,22 @@ jobs:
             echo ""
             echo "构建产物在模拟器上启动后抓取的 logcat，用于定位白屏根因。"
             echo ""
+            echo "### logcat-app-pid.log (应用进程专属 logcat，含 WebView console / Rust stderr)"
+            echo '```'
+            tail -400 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### app-pid.log"
+            echo '```'
+            cat logs/app-pid.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
             echo "### logcat-app.log (Tauri/Rust/WebView/panic 相关)"
             echo '```'
             tail -300 logs/logcat-app.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-error.log (*:E)"
+            echo "### logcat-error.log (*:E 且含 jmcomic/FATAL)"
             echo '```'
             tail -200 logs/logcat-error.log 2>/dev/null || echo "(无)"
             echo '```'
@@ -246,29 +271,14 @@ jobs:
             cat logs/start.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### boot.log"
-            echo '```'
-            cat logs/boot.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### adb-devices.log"
-            echo '```'
-            cat logs/adb-devices.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
             echo "### activity-stack.log"
             echo '```'
             cat logs/activity-stack.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-full.log 末尾 200 行(兜底，确保能看到模拟器是否真的启动)"
+            echo "### logcat-full.log 末尾 150 行(兜底)"
             echo '```'
-            tail -200 logs/logcat-full.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### emulator-stdout.log 末尾 80 行(模拟器自身启动输出，诊断启动失败)"
-            echo '```'
-            tail -80 logs/emulator-stdout.log 2>/dev/null || echo "(无)"
+            tail -150 logs/logcat-full.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### build.log 末尾 30 行"
