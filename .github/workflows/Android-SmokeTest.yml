@@ -40,7 +40,8 @@ jobs:
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
           # 模拟器系统镜像（x86_64，runner 支持 KVM 硬件加速）
-          sdkmanager "system-images;android-35;google_apis;x86_64"
+          # 用 api 34，比 35 更稳定，emulator-runner 默认测试覆盖更好
+          sdkmanager "system-images;android-34;google_apis;x86_64"
           yes | sdkmanager --licenses || true
 
       - name: Set Android environment variables
@@ -152,54 +153,65 @@ jobs:
       - name: Run Android Emulator and capture logcat
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
           profile: pixel_6
           target: google_apis
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -no-metrics
           disable-animations: true
           script: |
-            set -x
+            # 关键：set +e 让每一步都执行，即使某步失败也继续抓日志，否则
+            # 模拟器/安装/启动任何一环失败都会让 script 提前退出，logs/ 全空。
+            set +e
             mkdir -p logs
-            # 等待模拟器完全启动
-            adb wait-for-device
-            echo "等待 boot 完成..."
+            echo "=== adb devices ===" | tee logs/adb-devices.log
+            adb devices | tee -a logs/adb-devices.log
+
+            echo "等待 boot 完成..." | tee logs/boot.log
+            adb wait-for-device 2>&1 | tee -a logs/boot.log
             for i in $(seq 1 60); do
               BOOT=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-              if [ "$BOOT" = "1" ]; then echo "boot 完成"; break; fi
+              echo "boot_completed=$BOOT" | tee -a logs/boot.log
+              if [ "$BOOT" = "1" ]; then echo "boot 完成" | tee -a logs/boot.log; break; fi
               sleep 2
             done
 
-            echo "=== 安装 APK ==="
-            adb install -r -t "${{ steps.apk.outputs.apk_path }}" 2>&1 | tee logs/install.log
+            echo "=== 安装 APK ===" | tee logs/install.log
+            adb install -r -t "${{ steps.apk.outputs.apk_path }}" 2>&1 | tee -a logs/install.log
+            echo "install exit=$?" | tee -a logs/install.log
 
             # 清空旧 logcat
-            adb logcat -c
+            adb logcat -c 2>/dev/null
 
-            echo "=== 启动应用主 Activity ==="
-            # 包名来自 tauri.conf.json 的 identifier
+            echo "=== 启动应用主 Activity ===" | tee logs/start.log
             PKG="com.lanyeeee.jmcomic_downloader"
-            # Tauri Android 的主 Activity 是 MainActivity
-            adb shell am start -n "$PKG/com.tauri.MainActivity" 2>&1 | tee logs/start.log || \
-              adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 2>&1 | tee logs/start.log
+            adb shell am start -n "$PKG/com.tauri.MainActivity" 2>&1 | tee -a logs/start.log
+            START_EXIT=$?
+            echo "am start exit=$START_EXIT" | tee -a logs/start.log
+            if [ "$START_EXIT" -ne 0 ]; then
+              adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 2>&1 | tee -a logs/start.log
+            fi
 
-            echo "=== 等待 30 秒收集日志 ==="
+            echo "=== 等待 30 秒收集日志 ===" | tee logs/wait.log
             sleep 30
 
-            echo "=== 抓取全量 logcat ==="
-            adb logcat -d -v time 2>&1 | tee logs/logcat-full.log
-            echo "=== 抓取 crash 相关 ==="
-            adb logcat -d -v time *:E 2>&1 | tee logs/logcat-error.log
-            echo "=== 抓取 Tauri/Rust/WebView 相关 ==="
-            adb logcat -d -v time 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage" | tee logs/logcat-app.log || true
+            echo "=== 抓取全量 logcat ===" | tee logs/logcat-full.log
+            adb logcat -d -v time 2>&1 | tee -a logs/logcat-full.log
+            echo "=== 抓取 crash 相关 (*:E) ===" | tee logs/logcat-error.log
+            adb logcat -d -v time *:E 2>&1 | tee -a logs/logcat-error.log
+            echo "=== 抓取 Tauri/Rust/WebView 相关 ===" | tee logs/logcat-app.log
+            adb logcat -d -v time 2>&1 | grep -iE "tauri|rust|panic|wry|webview|chromium|jmcomic|fatal|AndroidRuntime|consoleMessage|==== PANIC ====" | tee -a logs/logcat-app.log
 
-            echo "=== 当前 Activity 栈（判断是否真的起来了）==="
-            adb shell dumpsys activity activities 2>&1 | grep -iE "mResumedActivity|topResumedActivity|jmcomic" | tee logs/activity-stack.log || true
+            echo "=== 当前 Activity 栈 ===" | tee logs/activity-stack.log
+            adb shell dumpsys activity activities 2>&1 | grep -iE "mResumedActivity|topResumedActivity|jmcomic|ResumedActivity" | tee -a logs/activity-stack.log
 
-            echo "=== 截图 ==="
-            adb shell screencap -p /sdcard/screen.png
-            adb pull /sdcard/screen.png logs/screen.png || true
+            echo "=== 截图 ===" | tee logs/screenshot.log
+            adb shell screencap -p /sdcard/screen.png 2>&1 | tee -a logs/screenshot.log
+            adb pull /sdcard/screen.png logs/screen.png 2>&1 | tee -a logs/screenshot.log
+
+            # 永远返回成功，让后续 upload/comment 步骤能跑
+            exit 0
 
       - name: Upload smoke-test logs
         if: always()
@@ -240,14 +252,29 @@ jobs:
             cat logs/start.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
+            echo "### boot.log"
+            echo '```'
+            cat logs/boot.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### adb-devices.log"
+            echo '```'
+            cat logs/adb-devices.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
             echo "### activity-stack.log"
             echo '```'
             cat logs/activity-stack.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### build.log 末尾 50 行"
+            echo "### logcat-full.log 末尾 200 行(兜底，确保能看到模拟器是否真的启动)"
             echo '```'
-            tail -50 logs/build.log 2>/dev/null || echo "(无)"
+            tail -200 logs/logcat-full.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### build.log 末尾 30 行"
+            echo '```'
+            tail -30 logs/build.log 2>/dev/null || echo "(无)"
             echo '```'
           } > "$BODY"
 
