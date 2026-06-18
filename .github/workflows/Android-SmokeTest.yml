@@ -135,7 +135,8 @@ jobs:
           set -x
           mkdir -p logs
           # 只构建 x86_64 debug APK，模拟器用，构建快
-          pnpm tauri android build --apk --target x86_64-linux-android -v 2>&1 | tee logs/build.log
+          # 注意：tauri android build 的 --target 接受的是简称(x86_64)，不是完整 triple
+          pnpm tauri android build --apk --target x86_64 -v 2>&1 | tee logs/build.log
           exit ${PIPESTATUS[0]}
 
       - name: Locate built APK
