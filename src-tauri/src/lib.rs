@@ -40,14 +40,16 @@ mod boot_diag {
     use std::ffi::CString;
     use std::fs::OpenOptions;
     use std::io::Write;
+    use std::os::raw::c_char;
 
     // NDK liblog 的 __android_log_write(prio, tag, text)
     // prio: 3=DEBUG 4=INFO 5=WARN 6=ERROR
     // liblog.so 是 Android 系统库，android target 默认链接。
-    // 参数用 *const u8 匹配 CString::as_ptr() 的返回类型。
+    // 用 c_char (= i8) 匹配 C 的 const char*，CString::as_ptr() 显式 cast 过去，
+    // 避免 Rust 不同版本 as_ptr 返回 *const u8 / *const i8 的差异。
     #[link(name = "log")]
     extern "C" {
-        fn __android_log_write(prio: i32, tag: *const u8, text: *const u8) -> i32;
+        fn __android_log_write(prio: i32, tag: *const c_char, text: *const c_char) -> i32;
     }
 
     fn logcat(msg: &str) {
@@ -56,7 +58,7 @@ mod boot_diag {
         for line in msg.split('\n') {
             let text = CString::new(line).unwrap_or_default();
             unsafe {
-                __android_log_write(4, tag.as_ptr(), text.as_ptr());
+                __android_log_write(4, tag.as_ptr() as *const c_char, text.as_ptr() as *const c_char);
             }
         }
     }
