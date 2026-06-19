@@ -30,12 +30,16 @@ watch(
       return
     }
 
-    const result = await commands.saveConfig(store.config)
-    if (result.status === 'error') {
-      console.error(result.error)
-      return
+    try {
+      const result = await commands.saveConfig(store.config)
+      if (result.status === 'error') {
+        console.error(result.error)
+        return
+      }
+      message.success('保存配置成功')
+    } catch (e) {
+      console.error('保存配置失败', e)
     }
-    message.success('保存配置成功')
   },
   { deep: true },
 )
@@ -45,17 +49,29 @@ onMounted(async () => {
   document.oncontextmenu = (event) => {
     event.preventDefault()
   }
-  // 获取配置
-  store.config = await commands.getConfig()
+  // 获取配置 —— 失败时记录错误并显示错误界面，而不是让屏幕一直白屏
+  try {
+    const cfg = await commands.getConfig()
+    store.config = cfg
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    store.initError = `加载配置失败: ${msg}`
+    console.error(store.initError, e)
+    return
+  }
   // 如果username和password不为空，尝试登录
   if (store.config.username !== '' && store.config.password !== '') {
-    const result = await commands.login(store.config.username, store.config.password)
-    if (result.status === 'error') {
-      console.error(result.error)
-      return
+    try {
+      const result = await commands.login(store.config.username, store.config.password)
+      if (result.status === 'error') {
+        console.error(result.error)
+        return
+      }
+      store.userProfile = result.data
+      message.success('自动登录成功')
+    } catch (e) {
+      console.error('自动登录异常', e)
     }
-    store.userProfile = result.data
-    message.success('自动登录成功')
   }
 })
 
@@ -89,8 +105,21 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="store.config !== undefined" class="h-screen flex overflow-hidden">
-    <n-tabs class="h-full w-1/2" v-model:value="store.currentTabName" type="line" size="small" animated>
+  <!-- 初始化错误：显示错误信息而非白屏 -->
+  <div v-if="store.initError" class="h-screen flex items-center justify-center p-4">
+    <div class="max-w-md text-center">
+      <h2 class="text-lg font-bold text-red-5 mb-2">应用初始化失败</h2>
+      <pre class="text-sm text-gray-6 whitespace-pre-wrap break-all">{{ store.initError }}</pre>
+      <p class="text-xs text-gray-4 mt-4">请截图反馈此错误信息</p>
+    </div>
+  </div>
+  <!-- 配置加载中 -->
+  <div v-else-if="store.config === undefined" class="h-screen flex items-center justify-center">
+    <span class="text-gray-4">加载中...</span>
+  </div>
+  <!-- 正常界面：手机单栏堆叠，PC(md+)左右双栏 -->
+  <div v-else class="h-screen flex flex-col md:flex-row overflow-hidden">
+    <n-tabs class="h-full w-full md:w-1/2" v-model:value="store.currentTabName" type="line" size="small" animated>
       <n-tab-pane class="h-full overflow-auto p-0!" name="search" tab="搜索" display-directive="show">
         <SearchPane />
       </n-tab-pane>
@@ -107,8 +136,8 @@ onMounted(async () => {
         <ChapterPane />
       </n-tab-pane>
     </n-tabs>
-    <div class="w-1/2 overflow-auto flex flex-col">
-      <div class="flex px-2 gap-1">
+    <div class="w-full md:w-1/2 overflow-auto flex flex-col">
+      <div class="flex flex-wrap px-2 gap-1">
         <n-button type="primary" @click="loginDialogShowing = true">
           <template #icon>
             <n-icon>

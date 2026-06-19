@@ -97,7 +97,7 @@ impl Config {
         config
     }
 
-    fn default(app_data_dir: &Path) -> Config {
+    pub fn default(app_data_dir: &Path) -> Config {
         Config {
             username: String::new(),
             password: String::new(),

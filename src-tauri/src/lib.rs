@@ -1,4 +1,3 @@
-use anyhow::Context;
 use events::{
     DownloadAllFavoritesEvent, DownloadSleepingEvent, DownloadSpeedEvent, DownloadTaskEvent,
     ExportCbzEvent, ExportPdfEvent, LogEvent, UpdateDownloadedComicsEvent,
@@ -114,17 +113,35 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
 
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .context("failed to get app data dir")?;
+            // 安卓上 app_data_dir() 偶尔会失败(权限/路径)，一旦失败原来的 `?` 会让
+            // 整个 setup 返回 Err，应用直接白屏/不渲染。这里改成容错：
+            // 拿不到就用 cache_dir/临时目录兜底，绝不中断 setup。
+            let app_data_dir = app.path().app_data_dir().unwrap_or_else(|e| {
+                eprintln!("[setup] app_data_dir() 失败: {e:?}，尝试用 cache_dir 兜底");
+                let fallback = app
+                    .path()
+                    .cache_dir()
+                    .or_else(|_| app.path().temp_dir())
+                    .unwrap_or_else(|e2| {
+                        eprintln!("[setup] cache_dir/temp_dir 也失败: {e2:?}，用 /tmp 兜底");
+                        std::path::PathBuf::from("/tmp/jmcomic-downloader")
+                    });
+                eprintln!("[setup] 使用兜底 app_data_dir: {}", fallback.display());
+                fallback
+            });
 
-            std::fs::create_dir_all(&app_data_dir).context(format!(
-                "failed to create app data dir: {}",
-                app_data_dir.display()
-            ))?;
+            if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
+                eprintln!("[setup] 创建 app_data_dir 失败: {e:?}，继续(可能后续读写失败)");
+            }
 
-            let config = RwLock::new(Config::new(app.handle())?);
+            // Config::new 失败也用默认配置兜底，不让 setup 中断
+            let config = match Config::new(app.handle()) {
+                Ok(c) => RwLock::new(c),
+                Err(e) => {
+                    eprintln!("[setup] Config::new 失败: {e:?}，用默认配置兜底");
+                    RwLock::new(Config::default(&app_data_dir))
+                }
+            };
             app.manage(config);
 
             let jm_client = JmClient::new(app.handle().clone());
@@ -133,7 +150,10 @@ pub fn run() {
             let download_manager = DownloadManager::new(app.handle().clone());
             app.manage(download_manager);
 
-            logger::init(app.handle())?;
+            // logger 失败不影响应用启动
+            if let Err(e) = logger::init(app.handle()) {
+                eprintln!("[setup] logger::init 失败: {e:?}，忽略继续");
+            }
 
             Ok(())
         })
