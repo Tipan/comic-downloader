@@ -183,6 +183,24 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             boot_diag::trace("setup() entered");
+            // 诊断：列出窗口配置和已创建的 webview windows。
+            // tauri 内部 setup 在用户 setup 之前已尝试从 app.windows 创建窗口，
+            // 这里检查是否真的创建成功，定位 wryCreate 为何不产生 WebView。
+            let windows_cfg = app.config().app.windows.clone();
+            boot_diag::trace(&format!(
+                "setup: app.windows 配置数量={}, labels={:?}",
+                windows_cfg.len(),
+                windows_cfg.iter().map(|w| w.label.as_str()).collect::<Vec<_>>()
+            ));
+            let webview_labels: Vec<String> = app
+                .webview_windows()
+                .keys()
+                .cloned()
+                .collect();
+            boot_diag::trace(&format!(
+                "setup: 已创建的 webview windows={:?} (空=窗口创建失败，wryCreate 无消息可处理)",
+                webview_labels
+            ));
             builder.mount_events(app);
 
             // 安卓上 app_data_dir() 偶尔会失败(权限/路径)，一旦失败原来的 `?` 会让
