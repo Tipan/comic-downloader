@@ -119,7 +119,7 @@ onMounted(async () => {
   </div>
   <!-- 正常界面：手机单栏堆叠，PC(md+)左右双栏 -->
   <div v-else class="h-screen flex flex-col md:flex-row overflow-hidden">
-    <n-tabs class="h-full w-full md:w-1/2" v-model:value="store.currentTabName" type="line" size="small" animated>
+    <n-tabs class="h-full w-full md:w-1/2" v-model:value="store.currentTabName" type="line" size="medium" animated>
       <n-tab-pane class="h-full overflow-auto p-0!" name="search" tab="搜索" display-directive="show">
         <SearchPane />
       </n-tab-pane>
@@ -137,8 +137,8 @@ onMounted(async () => {
       </n-tab-pane>
     </n-tabs>
     <div class="w-full md:w-1/2 overflow-auto flex flex-col">
-      <div class="flex flex-wrap px-2 gap-1">
-        <n-button type="primary" @click="loginDialogShowing = true">
+      <div class="flex flex-wrap px-2 py-1 gap-2 items-center">
+        <n-button type="primary" size="medium" @click="loginDialogShowing = true">
           <template #icon>
             <n-icon>
               <PhUser />
@@ -146,7 +146,7 @@ onMounted(async () => {
           </template>
           登录
         </n-button>
-        <n-button @click="logViewerShowing = true">
+        <n-button size="medium" @click="logViewerShowing = true">
           <template #icon>
             <n-icon size="20">
               <PhClockCounterClockwise />
@@ -154,7 +154,7 @@ onMounted(async () => {
           </template>
           日志
         </n-button>
-        <n-button @click="aboutDialogShowing = true">
+        <n-button size="medium" @click="aboutDialogShowing = true">
           <template #icon>
             <n-icon size="20">
               <PhInfo />
@@ -166,7 +166,7 @@ onMounted(async () => {
           <n-avatar
             class="flex-shrink-0"
             round
-            :size="32"
+            :size="40"
             :src="store.userProfile.photo"
             fallback-src="https://cdn-msp.18comic.vip/templates/frontend/airav/img/title-png/more-ms-jm.webp?v=2" />
           <span class="whitespace-nowrap text-ellipsis overflow-hidden" :title="store.userProfile.username">
@@ -192,6 +192,11 @@ onMounted(async () => {
 }
 
 :deep(.n-tabs-nav) {
-  @apply px-2;
+  @apply px-2 py-1;
+}
+
+/* 触屏优化：tab 标签加大可点击区域 */
+:deep(.n-tabs-tab) {
+  @apply text-base;
 }
 </style>

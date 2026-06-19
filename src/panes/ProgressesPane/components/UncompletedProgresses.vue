@@ -14,13 +14,15 @@ import {
   PhClock,
   PhWarningCircle,
 } from '@phosphor-icons/vue'
+import { useLongPress } from '../../../composables/useLongPress'
 
 const store = useStore()
 
 const selectedIds = ref<Set<number>>(new Set())
 const selectionAreaRef = ref<InstanceType<typeof SelectionArea>>()
 const selectableRefs = ref<HTMLDivElement[]>([])
-const { dropdownX, dropdownY, dropdownShowing, dropdownOptions, showDropdown } = useDropdown()
+const { dropdownX, dropdownY, dropdownShowing, dropdownOptions, showDropdown, showDropdownTouch } = useDropdown()
+const { onTouchStart, onTouchEnd, onTouchMove } = useLongPress(showDropdownTouch)
 
 const uncompletedProgresses = computed<[number, ProgressData][]>(() =>
   Array.from(store.progresses.entries())
@@ -217,12 +219,24 @@ function useDropdown() {
     dropdownY.value = e.clientY
   }
 
+  // 触屏长按：从 TouchEvent 取坐标
+  async function showDropdownTouch(e: TouchEvent) {
+    const touch = e.touches[0] || e.changedTouches[0]
+    if (!touch) return
+    dropdownShowing.value = false
+    await nextTick()
+    dropdownShowing.value = true
+    dropdownX.value = touch.clientX
+    dropdownY.value = touch.clientY
+  }
+
   return {
     dropdownX,
     dropdownY,
     dropdownShowing,
     dropdownOptions,
     showDropdown,
+    showDropdownTouch,
   }
 }
 
@@ -263,9 +277,12 @@ function stateToColorClass(state: DownloadTaskState) {
     class="h-full flex flex-col selection-container px-2"
     :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
     @contextmenu="showDropdown"
+    @touchstart="onTouchStart"
+    @touchend="onTouchEnd"
+    @touchmove="onTouchMove"
     @move="updateSelectedIds"
     @start="unselectAll">
-    <span class="ml-auto select-none">左键拖动进行框选，右键打开菜单，双击暂停/继续</span>
+    <span class="ml-auto select-none">长按打开菜单，单击暂停/继续</span>
     <div class="h-full select-none">
       <div
         v-for="[chapterId, { state, comic, chapterInfo, percentage, indicator }] in uncompletedProgresses"
@@ -276,7 +293,7 @@ function stateToColorClass(state: DownloadTaskState) {
           'selectable p-3 mb-2 rounded-lg',
           selectedIds.has(chapterId) ? 'selected shadow-md' : 'hover:bg-gray-1',
         ]"
-        @dblclick="() => handleProgressDoubleClick(state, chapterId)"
+        @click="() => handleProgressDoubleClick(state, chapterId)"
         @contextmenu="() => handleProgressContextMenu(chapterId)">
         <div class="grid grid-cols-[1fr_1fr]">
           <div class="text-ellipsis whitespace-nowrap overflow-hidden" :title="comic.name">

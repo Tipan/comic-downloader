@@ -5,6 +5,7 @@ import { NIcon, DropdownOption } from 'naive-ui'
 import { PhChecks, PhTrash } from '@phosphor-icons/vue'
 import { SelectionArea, SelectionEvent } from '@viselect/vue'
 import ExportProgress from './ExportProgress.vue'
+import { useLongPress } from '../../../composables/useLongPress'
 
 type ProgressState = 'Processing' | 'Error' | 'End'
 
@@ -21,7 +22,8 @@ export interface ProgressData {
 }
 
 const selectedIds = ref<Set<string>>(new Set())
-const { dropdownX, dropdownY, dropdownShowing, dropdownOptions, showDropdown } = useDropdown()
+const { dropdownX, dropdownY, dropdownShowing, dropdownOptions, showDropdown, showDropdownTouch } = useDropdown()
+const { onTouchStart, onTouchEnd, onTouchMove } = useLongPress(showDropdownTouch)
 
 const progresses = ref<Map<string, ProgressData>>(new Map())
 
@@ -232,12 +234,24 @@ function useDropdown() {
     dropdownY.value = e.clientY
   }
 
+  // 触屏长按：从 TouchEvent 取坐标
+  async function showDropdownTouch(e: TouchEvent) {
+    const touch = e.touches[0] || e.changedTouches[0]
+    if (!touch) return
+    dropdownShowing.value = false
+    await nextTick()
+    dropdownShowing.value = true
+    dropdownX.value = touch.clientX
+    dropdownY.value = touch.clientY
+  }
+
   return {
     dropdownX,
     dropdownY,
     dropdownShowing,
     dropdownOptions,
     showDropdown,
+    showDropdownTouch,
   }
 }
 </script>
@@ -247,10 +261,13 @@ function useDropdown() {
     class="h-full flex flex-col selection-container px-2"
     :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
     @contextmenu="showDropdown"
+    @touchstart="onTouchStart"
+    @touchend="onTouchEnd"
+    @touchmove="onTouchMove"
     @move="updateSelectedIds"
     @start="unselectAll">
     <div class="flex">
-      <span class="ml-auto animate-pulse text-red">左键拖动进行框选，右键打开菜单</span>
+      <span class="ml-auto animate-pulse text-red">长按打开菜单</span>
     </div>
 
     <ExportProgress

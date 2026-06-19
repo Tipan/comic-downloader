@@ -5,6 +5,7 @@ import { ChapterInfo, commands, DownloadTaskState } from '../bindings.ts'
 import { useStore } from '../store.ts'
 import { PhFolderOpen } from '@phosphor-icons/vue'
 import IconButton from '../components/IconButton.vue'
+import { useLongPress } from '../composables/useLongPress'
 
 const store = useStore()
 
@@ -145,6 +146,19 @@ async function onContextMenu(e: MouseEvent) {
   dropdownY.value = e.clientY
 }
 
+// 触屏长按菜单：从 TouchEvent 取坐标，复用 dropdown 显示逻辑
+async function onLongPress(e: TouchEvent) {
+  const touch = e.touches[0] || e.changedTouches[0]
+  if (!touch) return
+  showDropdown.value = false
+  await nextTick()
+  showDropdown.value = true
+  dropdownX.value = touch.clientX
+  dropdownY.value = touch.clientY
+}
+
+const { onTouchStart, onTouchEnd, onTouchMove } = useLongPress(onLongPress)
+
 async function downloadChapters() {
   if (store.pickedComic === undefined) {
     return
@@ -199,10 +213,10 @@ function isDownloading(state: State) {
 
 <template>
   <div class="h-full flex flex-col gap-2 box-border">
-    <div v-if="store.pickedComic !== undefined" class="flex items-center select-none pt-2 gap-1 px-2">
-      左键拖动进行框选，右键打开菜单
-      <n-button class="ml-auto" size="small" @click="refreshChapters">刷新</n-button>
-      <n-button size="small" type="primary" @click="downloadChapters">下载勾选章节</n-button>
+    <div v-if="store.pickedComic !== undefined" class="flex items-center select-none pt-2 gap-2 px-2 flex-wrap">
+      <span class="text-sm text-gray-5">长按章节打开菜单，点击勾选</span>
+      <n-button class="ml-auto" size="medium" @click="refreshChapters">刷新</n-button>
+      <n-button size="medium" type="primary" @click="downloadChapters">下载勾选章节</n-button>
     </div>
     <n-empty v-if="store.pickedComic === undefined" description="请先进行漫画搜索"></n-empty>
     <SelectionArea
@@ -211,9 +225,12 @@ function isDownloading(state: State) {
       class="selection-container flex flex-col flex-1 px-2 pt-0 overflow-auto"
       :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
       @contextmenu="onContextMenu"
+      @touchstart="onTouchStart"
+      @touchend="onTouchEnd"
+      @touchmove="onTouchMove"
       @move="updateSelectedIds"
       @start="unselectAll">
-      <n-checkbox-group v-model:value="checkedIds" class="grid grid-cols-3 gap-1.5">
+      <n-checkbox-group v-model:value="checkedIds" class="grid grid-cols-2 gap-2">
         <n-checkbox
           v-for="{ chapterId, chapterTitle, isDownloaded, state } in chapterInfos"
           :key="chapterId"

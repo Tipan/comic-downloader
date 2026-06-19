@@ -75,22 +75,22 @@ async function search(keyword: string, page: number, sort: SearchSort) {
     <n-input-group class="box-border px-2 pt-2">
       <FloatLabelInput
         label="关键词(jm号也可以)"
-        size="small"
+        size="medium"
         v-model:value="searchInput"
         clearable
         @keydown.enter="search(searchInput.trim(), 1, sortSelected)" />
       <n-select
-        class="w-45%"
+        class="w-40%"
         v-model:value="sortSelected"
         :options="sortOptions"
         :show-checkmark="false"
-        size="small"
+        size="medium"
         @update-value="search(searchInput.trim(), 1, $event)" />
       <n-button
         :loading="searching"
         type="primary"
-        size="small"
-        class="w-15%"
+        size="medium"
+        class="w-auto min-w-12"
         @click="search(searchInput.trim(), 1, sortSelected)">
         <template #icon>
           <n-icon size="22">

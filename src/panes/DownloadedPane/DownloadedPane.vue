@@ -9,13 +9,15 @@ import { DropdownOption, NIcon } from 'naive-ui'
 import { SelectionArea, SelectionEvent } from '@viselect/vue'
 import { PhChecks, PhCheck, PhX } from '@phosphor-icons/vue'
 import UpdateDownloadedComicsButton from './components/UpdateDownloadedComicsButton.vue'
+import { useLongPress } from '../../composables/useLongPress'
 
 const store = useStore()
 
 const selectedIds = ref<Set<number>>(new Set())
 const checkedIds = ref<Set<number>>(new Set())
-const { dropdownX, dropdownY, dropdownShowing, dropdownOptions, showDropdown } = useDropdown()
+const { dropdownX, dropdownY, dropdownShowing, dropdownOptions, showDropdown, showDropdownTouch } = useDropdown()
 const selectionAreaRef = ref<InstanceType<typeof SelectionArea>>()
+const { onTouchStart, onTouchEnd, onTouchMove } = useLongPress(showDropdownTouch)
 
 const PAGE_SIZE = 20
 // 已下载的漫画
@@ -221,23 +223,35 @@ function useDropdown() {
     dropdownY.value = e.clientY
   }
 
+  // 触屏长按：从 TouchEvent 取坐标
+  async function showDropdownTouch(e: TouchEvent) {
+    const touch = e.touches[0] || e.changedTouches[0]
+    if (!touch) return
+    dropdownShowing.value = false
+    await nextTick()
+    dropdownShowing.value = true
+    dropdownX.value = touch.clientX
+    dropdownY.value = touch.clientY
+  }
+
   return {
     dropdownX,
     dropdownY,
     dropdownShowing,
     dropdownOptions,
     showDropdown,
+    showDropdownTouch,
   }
 }
 </script>
 
 <template>
   <div v-if="store.config !== undefined" class="h-full flex flex-col">
-    <div class="flex gap-1 box-border px-2 pt-2">
+    <div class="flex gap-2 box-border px-2 pt-2">
       <n-input-group>
-        <n-input-group-label size="small">导出目录</n-input-group-label>
-        <n-input v-model:value="store.config.exportDir" size="small" readonly @click="selectExportDir" />
-        <n-button class="w-10" size="small" @click="showExportDirInFileManager">
+        <n-input-group-label size="medium">导出目录</n-input-group-label>
+        <n-input v-model:value="store.config.exportDir" size="medium" readonly @click="selectExportDir" />
+        <n-button class="w-12" size="medium" @click="showExportDirInFileManager">
           <template #icon>
             <n-icon size="20">
               <PhFolderOpen />
@@ -247,19 +261,22 @@ function useDropdown() {
       </n-input-group>
       <update-downloaded-comics-button />
     </div>
-    <div class="flex gap-2 items-center px-2 select-none">
+    <div class="flex gap-2 items-center px-2 py-1 select-none">
       <div class="animate-pulse text-sm text-red flex flex-col">
-        <div>左键拖动进行框选，右键打开菜单</div>
+        <div>长按打开菜单，点击勾选</div>
         <div>右边的按钮作用于勾选项</div>
       </div>
-      <n-button class="ml-auto" type="primary" size="small" @click="exportCbz">导出cbz</n-button>
-      <n-button type="primary" size="small" @click="exportPdf">导出pdf</n-button>
+      <n-button class="ml-auto" type="primary" size="medium" @click="exportCbz">导出cbz</n-button>
+      <n-button type="primary" size="medium" @click="exportPdf">导出pdf</n-button>
     </div>
     <SelectionArea
       class="flex flex-col overflow-auto box-border px-2 selection-container mb-2"
       ref="selectionAreaRef"
       :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
       @contextmenu="showDropdown"
+      @touchstart="onTouchStart"
+      @touchend="onTouchEnd"
+      @touchmove="onTouchMove"
       @move="updateSelectedIds"
       @start="unselectAll">
       <DownloadedComicCard

@@ -74,18 +74,20 @@ async function syncFavoriteFolder() {
 
 <template>
   <div class="h-full flex flex-col gap-2">
-    <div v-if="store.getFavoriteResult !== undefined" class="flex box-border px-2 pt-2">
+    <div v-if="store.getFavoriteResult !== undefined" class="flex box-border px-2 pt-2 gap-2">
       <n-select
+        class="flex-1"
         v-model:value="folderIdSelected"
         :options="folderOptions"
         :show-checkmark="false"
-        size="small"
+        size="medium"
         @update-value="getFavourite($event, 1, sortSelected)" />
       <n-select
+        class="w-40%"
         v-model:value="sortSelected"
         :options="sortOptions"
         :show-checkmark="false"
-        size="small"
+        size="medium"
         @update-value="getFavourite(folderIdSelected, 1, $event)" />
       <download-all-favorite-button />
     </div>
@@ -98,10 +100,10 @@ async function syncFavoriteFolder() {
         <span class="bg-gray-2/30 px-1 rounded">更新库存</span>
         <span>按钮</span>
         <template #trigger>
-          <n-button disabled class="ml-auto" size="small">更新漫画</n-button>
+          <n-button disabled class="ml-auto" size="medium">更新漫画</n-button>
         </template>
       </n-tooltip>
-      <n-button size="small" type="primary" secondary @click="syncFavoriteFolder">收藏不对点我</n-button>
+      <n-button size="medium" type="primary" secondary @click="syncFavoriteFolder">收藏不对点我</n-button>
     </div>
 
     <div v-if="store.getFavoriteResult !== undefined" class="flex flex-col gap-row-2 overflow-auto box-border px-2">

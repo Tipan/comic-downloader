@@ -62,16 +62,16 @@ function clearUsernameAndPasswordInConfig() {
       @close="showing = false"
       @keydown.enter="onLogin">
       <div class="flex flex-col gap-2">
-        <FloatLabelInput label="用户名" v-model:value="username" />
-        <FloatLabelInput label="密码" v-model:value="password" type="password" />
-        <div class="flex justify-between">
+        <FloatLabelInput label="用户名" size="medium" v-model:value="username" />
+        <FloatLabelInput label="密码" size="medium" v-model:value="password" type="password" />
+        <div class="flex justify-between items-center flex-wrap gap-2">
           <n-tooltip>
             用户名和密码将以明文保存在配置文件中
             <template #trigger>
               <n-checkbox v-model:checked="remember">记住我</n-checkbox>
             </template>
           </n-tooltip>
-          <n-button type="primary" size="tiny" secondary @click="clearUsernameAndPasswordInConfig">
+          <n-button type="primary" size="small" secondary @click="clearUsernameAndPasswordInConfig">
             清除配置文件中的用户名和密码
           </n-button>
         </div>

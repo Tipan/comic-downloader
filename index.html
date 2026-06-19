@@ -3,12 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + Vue + Typescript App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>漫画下载器</title>
   </head>
 
   <body>
     <div id="app"></div>
+    <style>
+      /* 触屏优化：去掉点击高亮、防滚动穿透 */
+      html, body {
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+    </style>
     <!--
       前端运行时错误捕获层。
       在 Android 真机/模拟器上白屏时，把 JS 异常、未捕获的 Promise rejection

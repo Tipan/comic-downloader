@@ -32,73 +32,73 @@ async function showConfigInFileManager() {
 
 <template>
   <n-modal v-if="store.config !== undefined" v-model:show="showing">
-    <n-dialog class="w-140!" :showIcon="false" title="配置" @close="showing = false">
+    <n-dialog class="w-full max-w-140 mx-auto" :showIcon="false" title="配置" @close="showing = false">
       <div class="flex flex-col">
         <span class="font-bold">下载速度</span>
         <div class="flex flex-col gap-1">
-          <div class="flex gap-1">
-            <n-input-group class="w-35%">
-              <n-input-group-label size="small">章节并发数</n-input-group-label>
+          <div class="flex flex-col md:flex-row gap-1">
+            <n-input-group class="w-full md:w-35%">
+              <n-input-group-label size="medium">章节并发数</n-input-group-label>
               <n-input-number
                 class="w-full"
                 v-model:value="store.config.chapterConcurrency"
-                size="small"
+                size="medium"
                 @update:value="message.warning('对章节并发数的修改需要重启才能生效')"
                 :min="1"
                 :parse="(x: string) => Number(x)" />
             </n-input-group>
-            <n-input-group class="w-65%">
-              <n-input-group-label size="small">每个章节下载完成后休息</n-input-group-label>
+            <n-input-group class="w-full md:w-65%">
+              <n-input-group-label size="medium">每个章节下载完成后休息</n-input-group-label>
               <n-input-number
                 class="w-full"
                 v-model:value="store.config.chapterDownloadIntervalSec"
-                size="small"
+                size="medium"
                 :min="0"
                 :parse="(x: string) => Number(x)" />
-              <n-input-group-label size="small">秒</n-input-group-label>
+              <n-input-group-label size="medium">秒</n-input-group-label>
             </n-input-group>
           </div>
-          <div class="flex gap-1">
-            <n-input-group class="w-35%">
-              <n-input-group-label size="small">图片并发数</n-input-group-label>
+          <div class="flex flex-col md:flex-row gap-1">
+            <n-input-group class="w-full md:w-35%">
+              <n-input-group-label size="medium">图片并发数</n-input-group-label>
               <n-input-number
                 class="w-full"
                 v-model:value="store.config.imgConcurrency"
-                size="small"
+                size="medium"
                 @update-value="message.warning('对图片并发数的修改需要重启才能生效')"
                 :min="1"
                 :parse="(x: string) => Number(x)" />
             </n-input-group>
-            <n-input-group class="w-65%">
-              <n-input-group-label size="small">每张图片下载完成后休息</n-input-group-label>
+            <n-input-group class="w-full md:w-65%">
+              <n-input-group-label size="medium">每张图片下载完成后休息</n-input-group-label>
               <n-input-number
                 class="w-full"
                 v-model:value="store.config.imgDownloadIntervalSec"
-                size="small"
+                size="medium"
                 :min="0"
                 :parse="(x: string) => Number(x)" />
-              <n-input-group-label size="small">秒</n-input-group-label>
+              <n-input-group-label size="medium">秒</n-input-group-label>
             </n-input-group>
           </div>
           <n-input-group>
-            <n-input-group-label size="small">下载整个收藏夹时，每处理完一个收藏夹中的漫画后休息</n-input-group-label>
+            <n-input-group-label size="medium">下载整个收藏夹时，每处理完一个收藏夹中的漫画后休息</n-input-group-label>
             <n-input-number
               class="w-full"
               v-model:value="store.config.downloadAllFavoritesIntervalSec"
-              size="small"
+              size="medium"
               :min="0"
               :parse="(x: string) => Number(x)" />
-            <n-input-group-label size="small">秒</n-input-group-label>
+            <n-input-group-label size="medium">秒</n-input-group-label>
           </n-input-group>
           <n-input-group>
-            <n-input-group-label size="small">更新库存时，每处理完一个已下载的漫画后休息</n-input-group-label>
+            <n-input-group-label size="medium">更新库存时，每处理完一个已下载的漫画后休息</n-input-group-label>
             <n-input-number
               class="w-full"
               v-model:value="store.config.updateDownloadedComicsIntervalSec"
-              size="small"
+              size="medium"
               :min="0"
               :parse="(x: string) => Number(x)" />
-            <n-input-group-label size="small">秒</n-input-group-label>
+            <n-input-group-label size="medium">秒</n-input-group-label>
           </n-input-group>
         </div>
 
@@ -149,7 +149,7 @@ async function showConfigInFileManager() {
         </n-radio-group>
 
         <span class="font-bold mt-2">API域名</span>
-        <n-radio-group v-model:value="store.config.apiDomainMode" size="small">
+        <n-radio-group v-model:value="store.config.apiDomainMode" size="medium" class="flex flex-wrap gap-1">
           <n-radio-button value="Domain1">线路1</n-radio-button>
           <n-radio-button value="Domain2">线路2</n-radio-button>
           <n-radio-button value="Domain3">线路3</n-radio-button>
@@ -158,33 +158,33 @@ async function showConfigInFileManager() {
           <n-radio-button value="Custom">自定义</n-radio-button>
         </n-radio-group>
         <n-input-group v-if="store.config.apiDomainMode === 'Custom'" class="mt-1">
-          <n-input-group-label size="small">自定义API域名</n-input-group-label>
+          <n-input-group-label size="medium">自定义API域名</n-input-group-label>
           <n-input
             v-model:value="customApiDomain"
-            size="small"
+            size="medium"
             placeholder=""
             @blur="store.config.customApiDomain = customApiDomain"
             @keydown.enter="store.config.customApiDomain = customApiDomain" />
         </n-input-group>
 
         <span class="font-bold mt-2">代理类型</span>
-        <n-radio-group v-model:value="store.config.proxyMode" size="small">
+        <n-radio-group v-model:value="store.config.proxyMode" size="medium" class="flex flex-wrap gap-1">
           <n-radio-button value="System">系统代理</n-radio-button>
           <n-radio-button value="NoProxy">直连</n-radio-button>
           <n-radio-button value="Custom">自定义</n-radio-button>
         </n-radio-group>
         <n-input-group v-if="store.config.proxyMode === 'Custom'" class="mt-1">
-          <n-input-group-label size="small">http://</n-input-group-label>
+          <n-input-group-label size="medium">http://</n-input-group-label>
           <n-input
             v-model:value="proxyHost"
-            size="small"
+            size="medium"
             placeholder=""
             @blur="store.config.proxyHost = proxyHost"
             @keydown.enter="store.config.proxyHost = proxyHost" />
-          <n-input-group-label size="small">:</n-input-group-label>
+          <n-input-group-label size="medium">:</n-input-group-label>
           <n-input-number
             v-model:value="store.config.proxyPort"
-            size="small"
+            size="medium"
             placeholder=""
             :parse="(x: string) => parseInt(x)" />
         </n-input-group>
@@ -239,7 +239,7 @@ async function showConfigInFileManager() {
           <template #trigger>
             <n-input
               v-model:value="dirFmt"
-              size="small"
+              size="medium"
               @blur="store.config.dirFmt = dirFmt"
               @keydown.enter="store.config.dirFmt = dirFmt" />
           </template>
@@ -248,7 +248,7 @@ async function showConfigInFileManager() {
         <span class="font-bold mt-2">其他</span>
         <n-checkbox class="w-fit" v-model:checked="store.config.shouldDownloadCover">下载封面</n-checkbox>
 
-        <n-button class="ml-auto mt-4" size="small" @click="showConfigInFileManager">打开配置目录</n-button>
+        <n-button class="ml-auto mt-4" size="medium" @click="showConfigInFileManager">打开配置目录</n-button>
       </div>
     </n-dialog>
   </n-modal>

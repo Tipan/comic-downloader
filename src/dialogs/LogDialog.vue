@@ -143,20 +143,20 @@ async function showLogsDirInFileManager() {
       @close="showing = false"
       style="width: 95%">
       <div class="mb-2 flex flex-wrap gap-2">
-        <n-input-group class="w-100">
-          <n-input size="small" v-model:value="searchText" placeholder="搜素日志..." clearable />
-          <n-select size="small" v-model:value="selectedLevel" :options="logLevelOptions" style="width: 120px" />
+        <n-input-group class="w-full md:w-100">
+          <n-input size="medium" v-model:value="searchText" placeholder="搜素日志..." clearable />
+          <n-select size="medium" v-model:value="selectedLevel" :options="logLevelOptions" style="width: 120px" />
         </n-input-group>
 
         <div class="flex flex-wrap gap-2 ml-auto items-center">
-          <n-button size="small" @click="showLogsDirInFileManager">打开日志目录</n-button>
+          <n-button size="medium" @click="showLogsDirInFileManager">打开日志目录</n-button>
           <n-checkbox v-model:checked="store.config.enableFileLogger">输出文件日志</n-checkbox>
         </div>
       </div>
 
       <n-config-provider :theme="darkTheme" :theme-overrides="{ Scrollbar: { width: '8px' } }">
         <n-virtual-list
-          class="h-[calc(100vh-300px)] overflow-hidden bg-gray-900"
+          class="h-[60vh] overflow-hidden bg-gray-900"
           :item-size="42"
           item-resizable
           :hoverable="false"
@@ -170,7 +170,7 @@ async function showLogsDirInFileManager() {
         </n-virtual-list>
       </n-config-provider>
       <div class="pt-1 flex">
-        <n-button ghost class="ml-auto" size="small" type="error" @click="clearLogRecords">清空日志浏览器</n-button>
+        <n-button ghost class="ml-auto" size="medium" type="error" @click="clearLogRecords">清空日志浏览器</n-button>
       </div>
     </n-dialog>
   </n-modal>

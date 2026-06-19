@@ -170,11 +170,11 @@ async function selectDownloadDir() {
 
 <template>
   <div v-if="store.config !== undefined" class="flex flex-col flex-1 overflow-auto">
-    <div class="flex gap-1 box-border px-2 pt-2.5">
+    <div class="flex gap-2 box-border px-2 pt-2.5">
       <n-input-group class="">
-        <n-input-group-label size="small">下载目录</n-input-group-label>
-        <n-input v-model:value="store.config.downloadDir" size="small" readonly @click="selectDownloadDir" />
-        <n-button class="w-10" size="small" @click="showDownloadDirInFileManager">
+        <n-input-group-label size="medium">下载目录</n-input-group-label>
+        <n-input v-model:value="store.config.downloadDir" size="medium" readonly @click="selectDownloadDir" />
+        <n-button class="w-12" size="medium" @click="showDownloadDirInFileManager">
           <template #icon>
             <n-icon size="20">
               <PhFolderOpen />
@@ -182,7 +182,7 @@ async function selectDownloadDir() {
           </template>
         </n-button>
       </n-input-group>
-      <n-button size="small" @click="settingsDialogShowing = true">
+      <n-button size="medium" @click="settingsDialogShowing = true">
         <template #icon>
           <n-icon size="20">
             <PhGearSix />
@@ -191,7 +191,7 @@ async function selectDownloadDir() {
         配置
       </n-button>
     </div>
-    <n-tabs class="h-full overflow-auto" v-model:value="store.progressesPaneTabName" type="line" size="small">
+    <n-tabs class="h-full overflow-auto" v-model:value="store.progressesPaneTabName" type="line" size="medium">
       <n-tab-pane class="h-full p-0! overflow-auto" name="uncompleted" tab="未完成">
         <UncompletedProgresses />
       </n-tab-pane>

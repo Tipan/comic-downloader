@@ -59,8 +59,8 @@ async function getWeekly() {
       v-model:value="selectedCategoryId"
       :options="categoryOptions"
       :show-checkmark="false"
-      size="small" />
-    <n-tabs class="h-full overflow-auto mb-2" v-model:value="currentWeeklyTypeId" type="line" size="small">
+      size="medium" />
+    <n-tabs class="h-full overflow-auto mb-2" v-model:value="currentWeeklyTypeId" type="line" size="medium">
       <n-tab-pane
         class="h-full overflow-auto"
         v-for="weeklyType in weeklyInfo.type"

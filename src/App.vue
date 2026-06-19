@@ -12,11 +12,13 @@ const themeOverrides: GlobalThemeOverrides = {
     primaryColorSuppl: '#FFB152',
     borderRadius: '4px',
     borderRadiusSmall: '3px',
-    heightMedium: '32px',
+    // 触屏优化：放大 medium 基准高度(原 32px)，让所有 medium 控件达到触控友好尺寸
+    heightMedium: '40px',
   },
   Button: {
-    paddingSmall: '0 8px',
-    paddingMedium: '0 12px',
+    paddingSmall: '0 12px',
+    paddingMedium: '0 16px',
+    paddingLarge: '0 20px',
   },
   Radio: {
     buttonColorActive: '#FF7A00',
@@ -27,7 +29,8 @@ const themeOverrides: GlobalThemeOverrides = {
     padding: '6px 2px',
     optionColorHover: '#FF7A00',
     optionTextColorHover: '#FFF',
-    optionHeightMedium: '28px',
+    // 触屏优化：菜单项高度放大到 44px
+    optionHeightMedium: '44px',
   },
 }
 </script>

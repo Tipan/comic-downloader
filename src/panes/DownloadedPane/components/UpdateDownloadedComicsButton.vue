@@ -140,15 +140,15 @@ function handleButtonClick() {
     </div>
 
     <template #action>
-      <n-button size="small" :disabled="rejectButtonDisabled" @click="reject">
+      <n-button size="medium" :disabled="rejectButtonDisabled" @click="reject">
         <span v-if="rejectButtonDisabled">不调整直接下载 ({{ rejectCooldown }})</span>
         <span v-else>不调整直接下载</span>
       </n-button>
-      <n-button size="small" type="primary" @click="agree">调整并下载</n-button>
+      <n-button size="medium" type="primary" @click="agree">调整并下载</n-button>
     </template>
 
     <template #trigger>
-      <n-button size="small" @click="handleButtonClick">更新库存</n-button>
+      <n-button size="medium" @click="handleButtonClick">更新库存</n-button>
     </template>
   </n-popconfirm>
 </template>
