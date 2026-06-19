@@ -191,24 +191,20 @@ onMounted(async () => {
   @apply h-full;
 }
 
-/* 触屏滚动修复：确保 n-tabs 内部高度链不断裂。
-   n-tabs → content 区(flex-1 撑满) → pane-wrapper(h-full) → pane(h-full overflow-auto)。
-   高度约束层层传递，overflow-auto 的 pane 才能触发触摸滚动。 */
+/* 触屏滚动修复：n-tabs 用 flex 布局，nav 固定高度，pane-wrapper 填充剩余空间。
+   高度约束从 n-tabs→pane-wrapper→tab-pane 层层传递，
+   overflow-auto 的 pane 才能触发触摸滚动(否则 pane 高度=内容高度，不溢出)。 */
 :deep(.n-tabs) {
-  @apply flex flex-col;
+  @apply flex flex-col h-full overflow-hidden;
 }
 :deep(.n-tabs-nav) {
-  @apply flex-shrink-0;
+  @apply flex-shrink-0 px-2 py-1;
 }
-:deep(.n-tabs-content) {
-  @apply flex-1 overflow-hidden;
+:deep(.n-tabs-pane-wrapper) {
+  @apply flex-1 min-h-0 overflow-hidden;
 }
 :deep(.n-tab-pane) {
-  @apply h-full;
-}
-
-:deep(.n-tabs-nav) {
-  @apply px-2 py-1;
+  @apply h-full overflow-auto;
 }
 
 /* 触屏优化：tab 标签加大可点击区域 */
