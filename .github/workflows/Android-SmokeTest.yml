@@ -151,6 +151,26 @@ jobs:
           echo "apk_path=$APK" >> $GITHUB_OUTPUT
           echo "Found APK: $APK"
 
+      - name: Inspect APK contents (确认前端 dist 是否打包进去)
+        run: |
+          set -x
+          mkdir -p logs
+          APK="${{ steps.apk.outputs.apk_path }}"
+          echo "=== APK 内 assets/ 目录(前端 dist 应在此) ===" | tee logs/apk-contents.log
+          unzip -l "$APK" | grep -iE "assets/|dist/|index.html|\.js$|\.css$" | tee -a logs/apk-contents.log
+          echo "=== APK 顶层结构 ===" | tee -a logs/apk-contents.log
+          unzip -l "$APK" | head -40 | tee -a logs/apk-contents.log
+          echo "=== 解压 assets 检查 index.html ===" | tee -a logs/apk-contents.log
+          mkdir -p /tmp/apk-extract
+          unzip -o "$APK" 'assets/*' -d /tmp/apk-extract 2>&1 | tee -a logs/apk-contents.log
+          find /tmp/apk-extract -type f | head -30 | tee -a logs/apk-contents.log
+          if [ -f /tmp/apk-extract/assets/index.html ]; then
+            echo "--- index.html 内容 ---" | tee -a logs/apk-contents.log
+            cat /tmp/apk-extract/assets/index.html | tee -a logs/apk-contents.log
+          else
+            echo "!!! assets/index.html 不存在 !!!" | tee -a logs/apk-contents.log
+          fi
+
       - name: Boot Android Emulator and capture logcat
         # 用 reactivecircus/android-emulator-runner：它负责启动模拟器并等到 sys.boot_completed
         # 再跑 script。之前手动启动会卡在冷启动。script 里所有 adb 调用一律用 timeout 包裹，
@@ -277,6 +297,11 @@ jobs:
             echo "### package.log (安装路径 + stopped 状态)"
             echo '```'
             cat logs/package.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### apk-contents.log (APK 内 assets/dist 内容，确认前端是否打包)"
+            echo '```'
+            cat logs/apk-contents.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### app-pid.log (进程是否存活)"
