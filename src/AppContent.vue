@@ -125,7 +125,7 @@ onMounted(async () => {
   <!-- PC：左右双栏(列表 | 进度) -->
   <div v-else class="h-full flex flex-col md:flex-row overflow-hidden">
     <!-- 手机顶部按钮栏(固定高度)；PC 放右栏 -->
-    <div class="flex flex-wrap px-2 py-1 gap-2 items-center md:hidden">
+    <div class="flex flex-wrap px-2 gap-2 items-center md:hidden flex-shrink-0 h-14 overflow-hidden">
       <n-button type="primary" size="medium" @click="loginDialogShowing = true">
         <template #icon>
           <n-icon>

@@ -18,11 +18,11 @@ async function showDownloadDirInFileManager() {
 </script>
 
 <template>
-  <div v-if="store.config !== undefined" class="flex gap-2 box-border px-2 py-1 overflow-hidden">
-    <n-input-group class="">
+  <div v-if="store.config !== undefined" class="flex gap-2 box-border px-2 items-center overflow-hidden flex-shrink-0 h-14">
+    <n-input-group class="flex-1 min-w-0">
       <n-input-group-label size="medium">下载目录</n-input-group-label>
       <n-input v-model:value="store.config.downloadDir" size="medium" />
-      <n-button class="w-12" size="medium" @click="showDownloadDirInFileManager">
+      <n-button class="w-12 flex-shrink-0" size="medium" @click="showDownloadDirInFileManager">
         <template #icon>
           <n-icon size="20">
             <PhFolderOpen />
@@ -30,7 +30,7 @@ async function showDownloadDirInFileManager() {
         </template>
       </n-button>
     </n-input-group>
-    <n-button size="medium" @click="emit('open-settings')">
+    <n-button class="flex-shrink-0" size="medium" @click="emit('open-settings')">
       <template #icon>
         <n-icon size="20">
           <PhGearSix />
