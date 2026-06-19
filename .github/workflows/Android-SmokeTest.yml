@@ -293,6 +293,19 @@ jobs:
             timeout 15 adb shell "ps -A | grep jmcomic" 2>&1 | tee -a logs/ps.log
             timeout 15 adb shell pidof com.lanyeeee.jmcomic_downloader 2>&1 | tee -a logs/ps.log
 
+            # 关键：专门抓 android_logger 打的 Rust 诊断日志(tag=jmcomic-rust)。
+            # release app 非 debuggable，Rust stdout/stderr 不进 logcat，只能靠
+            # android_logger 的 __android_log_write 才能在 logcat 看到 run()/setup/panic。
+            echo "=== Rust 诊断日志 (tag=jmcomic-rust，android_logger 输出) ===" | tee logs/rust-diag.log
+            timeout 60 adb logcat -d -v threadtime -s jmcomic-rust:* 2>&1 | tee -a logs/rust-diag.log
+            echo "--- 同时从 dump-all 里 grep rust/PANIC/setup/run 兜底 ---" | tee -a logs/rust-diag.log
+            grep -iE "jmcomic-rust|==== PANIC ====|run\(\)|setup\(\)|Builder|mobile_entry|boot_diag" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/rust-diag.log
+
+            # boot_diag 会尝试把诊断写到外部存储 /sdcard/Download/jmcomic-boot.log
+            echo "=== 拉 boot log 文件 (boot_diag 写到外部存储) ===" | tee -a logs/boot-file.log
+            timeout 20 adb shell "cat /sdcard/Download/jmcomic-boot.log 2>/dev/null || cat /storage/emulated/0/Download/jmcomic-boot.log 2>/dev/null || echo '(boot log 文件不存在，可能 scoped storage 拒绝写入)'" 2>&1 | tee -a logs/boot-file.log
+            timeout 20 adb pull /sdcard/Download/jmcomic-boot.log logs/jmcomic-boot.log 2>&1 | tee -a logs/boot-file.log || true
+
             echo "=== tombstone 文件列表 ===" | tee logs/tombstones.log
             timeout 20 adb shell ls -la /data/tombstones/ 2>&1 | tee -a logs/tombstones.log
 
@@ -382,6 +395,16 @@ jobs:
             echo "### logcat-crash.log (FATAL/crash 行)"
             echo '```'
             cat logs/logcat-crash.log 2>/dev/null | tail -200 || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### rust-diag.log (android_logger tag=jmcomic-rust，定位 Rust run() 失败点 —— 最关键)"
+            echo '```'
+            cat logs/rust-diag.log 2>/dev/null | tail -400 || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### boot-file.log (boot_diag 写到外部存储的诊断文件)"
+            echo '```'
+            cat logs/boot-file.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### activity-stack.log"
