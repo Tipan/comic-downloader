@@ -88,6 +88,19 @@ jobs:
       - name: Initialize Tauri Android project
         run: pnpm tauri android init
 
+      - name: Copy frontend dist into Android assets (fix white screen)
+        # tauri.build.gradle.kts 在当前版本没有把 frontendDist(dist/) 复制进 APK 的
+        # assets，导致 WebView 加载 tauri://localhost/index.html 404 → 白屏。
+        # 在 build 之前手动把 dist 内容复制到 android 项目的 assets 目录，让后续 gradle
+        # 打包自然带上前端资源。
+        run: |
+          set -x
+          ASSETS_DIR="src-tauri/gen/android/app/src/main/assets"
+          mkdir -p "$ASSETS_DIR"
+          cp -r dist/* "$ASSETS_DIR/"
+          echo "=== assets 目录内容 ==="
+          ls -la "$ASSETS_DIR/"
+
       - name: Debug - Verify Android project
         run: ls -la src-tauri/gen/android/
 
