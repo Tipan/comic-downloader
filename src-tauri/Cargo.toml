@@ -57,10 +57,9 @@ notify = { version = "8.0.0" }
 tracing-subscriber = { version = "0.3.19", features = ["local-time"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-# Android 上 Rust 的 stdout/stderr 默认不进 logcat(非 debuggable app 尤其如此)。
-# android_logger 直接调用 __android_log_write，无论是否 debuggable 都能输出到 logcat，
-# 是定位 Rust 侧白屏/静默失败的唯一可靠手段。
-android_logger = { version = "0.14" }
+# boot_diag 直接用 NDK __android_log_write(FFI) 输出 logcat，不依赖 android_logger，
+# 避免它设置 `log` 全局 logger 与 tracing_subscriber 的 try_init 冲突。
+# log crate 仍保留：tracing-log 桥接 log facade 时需要。
 log = "0.4"
 
 # 诊断阶段：暂时关闭 strip / lto / panic=abort。

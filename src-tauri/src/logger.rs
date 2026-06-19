@@ -100,7 +100,12 @@ pub fn init(app: &AppHandle) -> anyhow::Result<()> {
         .with(reloadable_file_layer)
         .with(console_layer)
         .with(log_event_layer)
-        .init();
+        // 关键修复：用 try_init 而非 init。
+        // Android 上 Tauri 在 setup 之前可能已设置 log 全局 logger，
+        // tracing_subscriber 的 init() 会因 SetLoggerError 直接 panic，
+        // 导致 setup 中断、WebView 永不创建 → 白屏。
+        // try_init 把该错误返回为 Result，由调用方(setup)容错处理。
+        .try_init()?;
 
     GUARD.get_or_init(|| parking_lot::Mutex::new(guard));
     RELOAD_FN.get_or_init(move || {

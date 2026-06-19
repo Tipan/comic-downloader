@@ -28,24 +28,36 @@ fn generate_context() -> tauri::Context<Wry> {
     tauri::generate_context!()
 }
 
-/// Android 诊断：把消息同时打到 logcat(通过 android_logger) 和外部存储文件
+/// Android 诊断：把消息同时打到 logcat(通过 __android_log_write 直接系统调用) 和外部存储文件
 /// (/sdcard/Download/jmcomic-boot.log，adb 可直接 pull)。
-/// 非 debuggable 的 release app 上，Rust 的 stdout/stderr 不会进 logcat，
-/// 所以必须用 android_logger + 文件双通道，才能看清 run() 到底卡在哪一步。
+/// 非 debuggable 的 release app 上，Rust 的 stdout/stderr 不会进 logcat。
+/// 注意：不能用 android_logger::init_once，因为它会设置 `log` 全局 logger，
+/// 与 logger.rs 里 tracing_subscriber 的 try_init(通过 tracing-log 桥接 log facade)冲突，
+/// 导致 SetLoggerError → logger::init 失败 → setup 中断 → 白屏。
+/// 这里直接用 NDK 的 __android_log_write，完全不碰 log 全局状态。
 #[cfg(target_os = "android")]
 mod boot_diag {
+    use std::ffi::CString;
     use std::fs::OpenOptions;
     use std::io::Write;
 
+    // NDK liblog 的 __android_log_write(prio, tag, text)
+    // prio: 3=DEBUG 4=INFO 5=WARN 6=ERROR
+    // liblog.so 是 Android 系统库，android target 默认链接。
+    #[link(name = "log")]
+    extern "C" {
+        fn __android_log_write(prio: i32, tag: *const i8, text: *const i8) -> i32;
+    }
+
     fn logcat(msg: &str) {
-        use log::LevelFilter;
-        // 初始化一次 android_logger(幂等)
-        let _ = android_logger::init_once(
-            android_logger::Config::default()
-                .with_max_level(LevelFilter::Trace)
-                .with_tag("jmcomic-rust"),
-        );
-        log::info!("{msg}");
+        let tag = CString::new("jmcomic-rust").unwrap_or_default();
+        // 每行单独写(__android_log_write 不支持多行，按 \n 拆开)
+        for line in msg.split('\n') {
+            let text = CString::new(line).unwrap_or_default();
+            unsafe {
+                __android_log_write(4, tag.as_ptr(), text.as_ptr());
+            }
+        }
     }
 
     fn append_file(msg: &str) {
