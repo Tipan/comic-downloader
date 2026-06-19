@@ -13,11 +13,18 @@
       /* 触屏优化：去掉点击高亮、防滚动穿透 */
       html, body {
         -webkit-tap-highlight-color: transparent;
-        /* contain 而非 none：阻止滚动穿透到 body，但不阻止内部 overflow 容器触摸滚动 */
         overscroll-behavior: contain;
         margin: 0;
         padding: 0;
         height: 100%;
+      }
+      /* 触屏设备上禁用所有 :hover 效果，防止点击后高亮态常驻粘住 */
+      @media (hover: none) {
+        *:hover {
+          background-color: inherit !important;
+          transform: none !important;
+          color: inherit !important;
+        }
       }
       /* 触摸滚动支持：确保所有 overflow 滚动容器在 Android WebView 上可触摸滑动。
          -webkit-overflow-scrolling 触发硬件加速滚动；

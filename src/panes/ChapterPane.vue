@@ -5,7 +5,7 @@ import { ChapterInfo, commands, DownloadTaskState } from '../bindings.ts'
 import { useStore } from '../store.ts'
 import { PhFolderOpen } from '@phosphor-icons/vue'
 import IconButton from '../components/IconButton.vue'
-import { useLongPress } from '../composables/useLongPress'
+import { useLongPress, clampDropdownPos } from '../composables/useLongPress'
 
 const store = useStore()
 
@@ -139,11 +139,14 @@ function updateSelectedIds({
 }
 
 async function onContextMenu(e: MouseEvent) {
+  // 触屏设备上 Android WebView 长按会合成 contextmenu，跳过让 useLongPress 处理
+  if ('ontouchstart' in window) return
   showDropdown.value = false
   await nextTick()
   showDropdown.value = true
-  dropdownX.value = e.clientX
-  dropdownY.value = e.clientY
+  const pos = clampDropdownPos(e.clientX, e.clientY)
+  dropdownX.value = pos.x
+  dropdownY.value = pos.y
 }
 
 // 触屏长按菜单：从 TouchEvent 取坐标，复用 dropdown 显示逻辑
@@ -153,8 +156,9 @@ async function onLongPress(e: TouchEvent) {
   showDropdown.value = false
   await nextTick()
   showDropdown.value = true
-  dropdownX.value = touch.clientX
-  dropdownY.value = touch.clientY
+  const pos = clampDropdownPos(touch.clientX, touch.clientY)
+  dropdownX.value = pos.x
+  dropdownY.value = pos.y
 }
 
 const { onTouchStart, onTouchEnd, onTouchMove } = useLongPress(onLongPress)

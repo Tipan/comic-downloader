@@ -57,3 +57,17 @@ export function useLongPress(onLongPress: (e: TouchEvent) => void, duration = 50
 
   return { onTouchStart, onTouchEnd, onTouchMove, pressing }
 }
+
+/**
+ * 夹紧 dropdown 坐标，防止菜单溢出屏幕右边缘和底部。
+ * 菜单预估宽度 200px，高度 250px。
+ */
+export function clampDropdownPos(x: number, y: number, menuW = 200, menuH = 250) {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  return {
+    x: Math.max(8, Math.min(x, vw - menuW - 8)),
+    y: y + menuH > vh ? Math.max(8, y - menuH) : y,
+  }
+}
+

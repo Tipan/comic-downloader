@@ -104,7 +104,7 @@ async function showConfigInFileManager() {
 
         <span class="font-bold mt-2">下载格式</span>
         <n-radio-group v-model:value="store.config.downloadFormat">
-          <n-tooltip placement="top" trigger="hover">
+          <n-tooltip placement="top" trigger="click">
             <template #trigger>
               <n-radio value="Jpeg">jpg</n-radio>
             </template>
@@ -119,7 +119,7 @@ async function showConfigInFileManager() {
             3. 编码速度最快
             <br />
           </n-tooltip>
-          <n-tooltip placement="top" trigger="hover">
+          <n-tooltip placement="top" trigger="click">
             <template #trigger>
               <n-radio value="Png">png</n-radio>
             </template>
@@ -131,7 +131,7 @@ async function showConfigInFileManager() {
             3. 编码速度最慢
             <br />
           </n-tooltip>
-          <n-tooltip placement="top" trigger="hover">
+          <n-tooltip placement="top" trigger="click">
             <template #trigger>
               <n-radio value="Webp">webp</n-radio>
             </template>
@@ -190,7 +190,7 @@ async function showConfigInFileManager() {
         </n-input-group>
 
         <span class="font-bold mt-2">下载目录格式</span>
-        <n-tooltip placement="top" trigger="hover" width="550">
+        <n-tooltip placement="top" trigger="click" :width="450">
           <div>
             可以用斜杠
             <span class="rounded bg-gray-500 px-1 text-white">/</span>

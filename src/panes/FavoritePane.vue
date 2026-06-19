@@ -93,7 +93,7 @@ async function syncFavoriteFolder() {
     </div>
 
     <div v-if="store.getFavoriteResult !== undefined" class="flex box-border px-2 gap-2">
-      <n-tooltip placement="top" trigger="hover">
+      <n-tooltip placement="top" trigger="click">
         <span>已弃用，请改用</span>
         <span class="bg-gray-2/30 px-1 rounded">本地库存</span>
         <span>中的</span>

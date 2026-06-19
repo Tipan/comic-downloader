@@ -8,7 +8,7 @@ import { DropdownOption, NIcon } from 'naive-ui'
 import { SelectionArea, SelectionEvent } from '@viselect/vue'
 import { PhChecks, PhCheck, PhX } from '@phosphor-icons/vue'
 import UpdateDownloadedComicsButton from './components/UpdateDownloadedComicsButton.vue'
-import { useLongPress } from '../../composables/useLongPress'
+import { useLongPress, clampDropdownPos } from '../../composables/useLongPress'
 
 const store = useStore()
 
@@ -202,11 +202,13 @@ function useDropdown() {
   ]
 
   async function showDropdown(e: MouseEvent) {
+    if ('ontouchstart' in window) return
     dropdownShowing.value = false
     await nextTick()
     dropdownShowing.value = true
-    dropdownX.value = e.clientX
-    dropdownY.value = e.clientY
+    const pos = clampDropdownPos(e.clientX, e.clientY)
+    dropdownX.value = pos.x
+    dropdownY.value = pos.y
   }
 
   // 触屏长按：从 TouchEvent 取坐标
@@ -216,8 +218,9 @@ function useDropdown() {
     dropdownShowing.value = false
     await nextTick()
     dropdownShowing.value = true
-    dropdownX.value = touch.clientX
-    dropdownY.value = touch.clientY
+    const pos = clampDropdownPos(touch.clientX, touch.clientY)
+    dropdownX.value = pos.x
+    dropdownY.value = pos.y
   }
 
   return {

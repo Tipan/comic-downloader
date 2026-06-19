@@ -65,7 +65,7 @@ function clearUsernameAndPasswordInConfig() {
         <FloatLabelInput label="用户名" size="medium" v-model:value="username" />
         <FloatLabelInput label="密码" size="medium" v-model:value="password" type="password" />
         <div class="flex justify-between items-center flex-wrap gap-2">
-          <n-tooltip>
+          <n-tooltip trigger="click">
             用户名和密码将以明文保存在配置文件中
             <template #trigger>
               <n-checkbox v-model:checked="remember">记住我</n-checkbox>
