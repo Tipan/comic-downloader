@@ -44,9 +44,10 @@ mod boot_diag {
     // NDK liblog 的 __android_log_write(prio, tag, text)
     // prio: 3=DEBUG 4=INFO 5=WARN 6=ERROR
     // liblog.so 是 Android 系统库，android target 默认链接。
+    // 参数用 *const u8 匹配 CString::as_ptr() 的返回类型。
     #[link(name = "log")]
     extern "C" {
-        fn __android_log_write(prio: i32, tag: *const i8, text: *const i8) -> i32;
+        fn __android_log_write(prio: i32, tag: *const u8, text: *const u8) -> i32;
     }
 
     fn logcat(msg: &str) {
