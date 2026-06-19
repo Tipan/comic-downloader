@@ -100,6 +100,10 @@ pub fn init(app: &AppHandle) -> anyhow::Result<()> {
         .with(reloadable_file_layer)
         .with(console_layer)
         .with(log_event_layer)
+        // Android 诊断：加一个 logcat layer，把所有 tracing 事件(含 wry/tauri 内部日志)
+        // 送到 logcat(tag=jmcomic-rust)，定位 wryCreate 为何不创建 WebView。
+        // 不受 target_filter 限制(该 layer 独立)，专门诊断阶段用。
+        .with(android_logcat_layer())
         // 关键修复：用 try_init 而非 init。
         // Android 上 Tauri 在 setup 之前可能已设置 log 全局 logger，
         // tracing_subscriber 的 init() 会因 SetLoggerError 直接 panic，
@@ -252,4 +256,66 @@ pub fn logs_dir(app: &AppHandle) -> anyhow::Result<std::path::PathBuf> {
         .app_data_dir()
         .context("获取app_data_dir目录失败")?;
     Ok(app_data_dir.join("日志"))
+}
+
+// ===== Android 诊断：logcat layer =====
+// 把所有 tracing 事件(含 wry/tauri 内部日志)送到 logcat，定位 wryCreate 为何不创建 WebView。
+// 非 Android 平台返回 None(不挂载)。
+
+#[cfg(target_os = "android")]
+fn android_logcat_layer<S>() -> Option<Box<dyn tracing_subscriber::Layer<S> + Send + Sync + 'static>>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    use std::ffi::CString;
+    use std::os::raw::c_char;
+
+    #[link(name = "log")]
+    extern "C" {
+        fn __android_log_write(prio: i32, tag: *const c_char, text: *const c_char) -> i32;
+    }
+
+    struct LogcatWriter;
+    impl Write for LogcatWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let s = String::from_utf8_lossy(buf);
+            let tag = CString::new("jmcomic-rust").unwrap_or_default();
+            for line in s.lines() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let text = CString::new(line).unwrap_or_default();
+                unsafe {
+                    __android_log_write(4, tag.as_ptr() as *const c_char, text.as_ptr() as *const c_char);
+                }
+            }
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    Some(Box::new(
+        layer()
+            .with_writer(std::sync::Mutex::new(LogcatWriter))
+            .with_timer(UtcTime::rfc_3339())
+            .with_ansi(false)
+            .with_target(true)
+            .with_line_number(true)
+            // 覆盖全局 target_filter：捕获所有 target(wry/tauri/tao 等)，
+            // 专门用于诊断 wryCreate 不创建 WebView 的问题。
+            .with_filter(
+                tracing_subscriber::filter::Targets::new()
+                    .with_default(tracing::Level::TRACE),
+            ),
+    ))
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_logcat_layer<S>() -> Option<Box<dyn tracing_subscriber::Layer<S> + Send + Sync + 'static>>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    None
 }
