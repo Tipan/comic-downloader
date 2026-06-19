@@ -152,10 +152,18 @@ jobs:
       - name: Search build.log for frontend/dist asset packaging
         run: |
           mkdir -p logs
-          echo "=== build.log 中含 frontend/dist/tauriBuild/asset 的行 ===" | tee logs/build-frontend.log
-          grep -iE "frontend|dist|tauriBuild|tauri.*build|asset|index.html|beforeBuild" logs/build.log 2>/dev/null | tee -a logs/build-frontend.log
-          echo "=== gen/android/app/build.gradle.kts 内容 ===" | tee -a logs/build-frontend.log
+          echo "=== build.log 中含 frontend/dist/tauriBuild/asset/beforeBuild/index.html 的行 ===" | tee logs/build-frontend.log
+          grep -inE "frontend|dist|tauriBuild|tauri.*build|asset|index.html|beforeBuild|copyAssets" logs/build.log 2>/dev/null | tee -a logs/build-frontend.log
+          echo "" | tee -a logs/build-frontend.log
+          echo "=== gen/android/app/build.gradle.kts 完整内容 ===" | tee -a logs/build-frontend.log
           cat src-tauri/gen/android/app/build.gradle.kts 2>&1 | tee -a logs/build-frontend.log
+          echo "" | tee -a logs/build-frontend.log
+          echo "=== gen/android/app/src/main/assets 目录(前端应被复制到这里) ===" | tee -a logs/build-frontend.log
+          ls -la src-tauri/gen/android/app/src/main/assets/ 2>&1 | tee -a logs/build-frontend.log
+          find src-tauri/gen/android/app/src/main/assets/ -type f 2>&1 | tee -a logs/build-frontend.log
+          echo "=== 搜索 build 产物里是否有 index.html ===" | tee -a logs/build-frontend.log
+          find src-tauri/gen/android/app/build -name "index.html" 2>&1 | tee -a logs/build-frontend.log
+          find src-tauri/gen/android/app/build -path "*assets*" -name "*.js" 2>&1 | head -20 | tee -a logs/build-frontend.log
 
       - name: Locate built APK
         id: apk
@@ -324,9 +332,9 @@ jobs:
             cat logs/dist-check.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### build-frontend.log (build.log 中 frontend/dist 关键行 + gen gradle)"
+            echo "### build-frontend.log (build.log 中 frontend/dist 关键行 + gen gradle + assets 目录)"
             echo '```'
-            cat logs/build-frontend.log 2>/dev/null | tail -100 || echo "(无)"
+            cat logs/build-frontend.log 2>/dev/null | tail -200 || echo "(无)"
             echo '```'
             echo ""
             echo "### app-pid.log (进程是否存活)"
