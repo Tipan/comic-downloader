@@ -141,28 +141,23 @@ jobs:
           echo "=== 确认 dist/index.html 存在 ===" | tee logs/dist-check.log
           ls -la dist/ 2>&1 | tee -a logs/dist-check.log
           ls -la dist/index.html 2>&1 | tee -a logs/dist-check.log
-          cat dist/index.html 2>&1 | tee -a logs/dist-check.log
           echo "=== src-tauri/dist 是否也存在 ===" | tee -a logs/dist-check.log
           ls -la src-tauri/dist/ 2>&1 | tee -a logs/dist-check.log
+
+          # 关键修复：tauri.build.gradle.kts 没有把 frontendDist(dist/) 复制进 APK 的 assets，
+          # 导致 WebView 加载 tauri://localhost/index.html 404 → 白屏。
+          # 在 tauri android build 之前，手动把 dist 内容复制到 android 项目的 assets 目录，
+          # 这样后续 gradle 打包会自然带上前端资源。
+          ASSETS_DIR="src-tauri/gen/android/app/src/main/assets"
+          echo "=== 手动复制 dist 到 $ASSETS_DIR (修复前端未打包) ===" | tee -a logs/dist-check.log
+          mkdir -p "$ASSETS_DIR"
+          cp -r dist/* "$ASSETS_DIR/" 2>&1 | tee -a logs/dist-check.log
+          ls -la "$ASSETS_DIR/" 2>&1 | tee -a logs/dist-check.log
+
           # 只构建 x86_64 debug APK，模拟器用，构建快
           # 注意：tauri android build 的 --target 接受的是简称(x86_64)，不是完整 triple
           pnpm tauri android build --apk --target x86_64 -v 2>&1 | tee logs/build.log
-          BUILD_EXIT=${PIPESTATUS[0]}
-
-          # 兜底：如果 tauri.build.gradle.kts 没把 dist 复制进 assets(已确认是白屏根因)，
-          # 手动把 dist 内容复制到 src/main/assets，然后重新跑 gradle assemble 打包。
-          ASSETS_DIR="src-tauri/gen/android/app/src/main/assets"
-          if [ ! -f "$ASSETS_DIR/index.html" ]; then
-            echo "=== tauri 未复制 dist 到 assets，手动复制兜底 ===" | tee -a logs/dist-check.log
-            mkdir -p "$ASSETS_DIR"
-            cp -r dist/* "$ASSETS_DIR/" 2>&1 | tee -a logs/dist-check.log
-            ls -la "$ASSETS_DIR/" 2>&1 | tee -a logs/dist-check.log
-            # 重新打包 universal release apk
-            cd src-tauri/gen/android
-            ./gradlew assembleUniversalRelease -v 2>&1 | tee -a ../../logs/build-repackage.log
-            cd -
-          fi
-          exit $BUILD_EXIT
+          exit ${PIPESTATUS[0]}
 
       - name: Search build.log for frontend/dist asset packaging
         run: |
