@@ -28,6 +28,52 @@ fn generate_context() -> tauri::Context<Wry> {
     tauri::generate_context!()
 }
 
+/// Android 诊断：把消息同时打到 logcat(通过 android_logger) 和外部存储文件
+/// (/sdcard/Download/jmcomic-boot.log，adb 可直接 pull)。
+/// 非 debuggable 的 release app 上，Rust 的 stdout/stderr 不会进 logcat，
+/// 所以必须用 android_logger + 文件双通道，才能看清 run() 到底卡在哪一步。
+#[cfg(target_os = "android")]
+mod boot_diag {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    fn logcat(msg: &str) {
+        use log::Level;
+        // 初始化一次 android_logger(幂等)
+        let _ = android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(Level::Trace)
+                .with_tag("jmcomic-rust"),
+        );
+        log::info!("{msg}");
+    }
+
+    fn append_file(msg: &str) {
+        // /sdcard/Download 在大多数 Android 上 app 可写(legacy storage)。
+        // 退而求其次写 app cache，但 cache 需要 run-as/debuggable 才能读，
+        // 所以优先用外部存储。
+        for path in ["/sdcard/Download/jmcomic-boot.log", "/storage/emulated/0/Download/jmcomic-boot.log"] {
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "{msg}");
+                return;
+            }
+        }
+    }
+
+    pub fn trace(msg: impl AsRef<str>) {
+        let msg = msg.as_ref();
+        logcat(msg);
+        append_file(msg);
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+mod boot_diag {
+    pub fn trace(msg: impl AsRef<str>) {
+        eprintln!("[boot] {}", msg.as_ref());
+    }
+}
+
 /// 安装 panic hook：把 panic 信息打到 stderr/stdout（Android 上会被 logcat 捕获），
 /// 这样白屏/闪退时能在 logcat 里看到真正的 Rust 崩溃原因，而不是只剩一个空进程。
 fn install_panic_hook() {
@@ -43,9 +89,15 @@ fn install_panic_hook() {
             .location()
             .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
             .unwrap_or_else(|| "<unknown location>".to_string());
+        let full = format!(
+            "\n==== PANIC ====\nlocation: {location}\npayload: {payload}\nbacktrace below\n================\n{}",
+            std::backtrace::Backtrace::force_capture()
+        );
         // Android logcat 会捕获 stdout/stderr（标签通常为 Rust 的 tag 或 app tag）。
         // 用多行 + 明显前缀，方便在 logcat 里 grep。
-        eprintln!("\n==== PANIC ====\nlocation: {location}\npayload: {payload}\nbacktrace below\n================\n");
+        eprintln!("{full}");
+        // 双通道：android_logger 也打一份，防止 stdout 被吞
+        boot_diag::trace(&full);
         default_hook(info);
     }));
 }
@@ -53,7 +105,10 @@ fn install_panic_hook() {
 // TODO: 添加Panic Doc
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    boot_diag::trace("run() entered: install_panic_hook");
     install_panic_hook();
+    boot_diag::trace("run(): building tauri_specta::Builder");
+
     let builder = tauri_specta::Builder::<Wry>::new()
         .commands(tauri_specta::collect_commands![
             greet,
@@ -106,39 +161,41 @@ pub fn run() {
         )
         .expect("Failed to export typescript bindings");
 
+    boot_diag::trace("run(): calling tauri::Builder::default() + plugins + setup");
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
+            boot_diag::trace("setup() entered");
             builder.mount_events(app);
 
             // 安卓上 app_data_dir() 偶尔会失败(权限/路径)，一旦失败原来的 `?` 会让
             // 整个 setup 返回 Err，应用直接白屏/不渲染。这里改成容错：
             // 拿不到就用 cache_dir/临时目录兜底，绝不中断 setup。
             let app_data_dir = app.path().app_data_dir().unwrap_or_else(|e| {
-                eprintln!("[setup] app_data_dir() 失败: {e:?}，尝试用 cache_dir 兜底");
+                boot_diag::trace(&format!("setup: app_data_dir() failed: {e:?}, fallback to cache_dir"));
                 let fallback = app
                     .path()
                     .cache_dir()
                     .or_else(|_| app.path().temp_dir())
                     .unwrap_or_else(|e2| {
-                        eprintln!("[setup] cache_dir/temp_dir 也失败: {e2:?}，用 /tmp 兜底");
+                        boot_diag::trace(&format!("setup: cache_dir/temp_dir also failed: {e2:?}, use /tmp"));
                         std::path::PathBuf::from("/tmp/jmcomic-downloader")
                     });
-                eprintln!("[setup] 使用兜底 app_data_dir: {}", fallback.display());
+                boot_diag::trace(&format!("setup: fallback app_data_dir: {}", fallback.display()));
                 fallback
             });
 
             if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
-                eprintln!("[setup] 创建 app_data_dir 失败: {e:?}，继续(可能后续读写失败)");
+                boot_diag::trace(&format!("setup: create_dir_all failed: {e:?}, continue"));
             }
 
             // Config::new 失败也用默认配置兜底，不让 setup 中断
             let config = match Config::new(app.handle()) {
                 Ok(c) => RwLock::new(c),
                 Err(e) => {
-                    eprintln!("[setup] Config::new 失败: {e:?}，用默认配置兜底");
+                    boot_diag::trace(&format!("setup: Config::new failed: {e:?}, use default"));
                     RwLock::new(Config::default(&app_data_dir))
                 }
             };
@@ -152,11 +209,17 @@ pub fn run() {
 
             // logger 失败不影响应用启动
             if let Err(e) = logger::init(app.handle()) {
-                eprintln!("[setup] logger::init 失败: {e:?}，忽略继续");
+                boot_diag::trace(&format!("setup: logger::init failed: {e:?}, ignore"));
             }
 
+            boot_diag::trace("setup() done OK");
             Ok(())
         })
         .run(generate_context())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            let msg = format!("run(): tauri Builder.run() FAILED: {e:?}");
+            boot_diag::trace(&msg);
+            eprintln!("{msg}");
+        });
+    boot_diag::trace("run(): returned from Builder.run() (this is unusual on mobile)");
 }

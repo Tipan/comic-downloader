@@ -56,8 +56,19 @@ indexmap = { version = "2.10.0" }
 notify = { version = "8.0.0" }
 tracing-subscriber = { version = "0.3.19", features = ["local-time"] }
 
+[target.'cfg(target_os = "android")'.dependencies]
+# Android 上 Rust 的 stdout/stderr 默认不进 logcat(非 debuggable app 尤其如此)。
+# android_logger 直接调用 __android_log_write，无论是否 debuggable 都能输出到 logcat，
+# 是定位 Rust 侧白屏/静默失败的唯一可靠手段。
+android_logger = { version = "0.14" }
+log = "0.4"
+
+# 诊断阶段：暂时关闭 strip / lto / panic=abort。
+# - panic=abort 会让 panic 直接终止进程且无回溯，无法定位 Rust run() 失败点。
+# - strip 会剥掉符号，panic 堆栈不可读。
+# 待白屏根因定位后再恢复。
 [profile.release]
-strip = true
-lto = true
-codegen-units = 1
-panic = "abort"
+strip = false
+lto = false
+codegen-units = 16
+panic = "unwind"
