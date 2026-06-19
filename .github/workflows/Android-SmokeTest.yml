@@ -175,35 +175,45 @@ jobs:
             timeout 180 adb install -r -t "${{ steps.apk.outputs.apk_path }}" 2>&1 | tee -a logs/install.log
             echo "install exit=$?" | tee -a logs/install.log
 
-            timeout 15 adb logcat -c 2>&1 | tee -a logs/install.log
+            # 确认安装路径 & stopped 状态
+            echo "=== pm path / dumpsys package ===" | tee logs/package.log
+            timeout 20 adb shell pm path com.lanyeeee.jmcomic_downloader 2>&1 | tee -a logs/package.log
+            timeout 20 adb shell dumpsys package com.lanyeeee.jmcomic_downloader 2>&1 | grep -iE "stopped|enabled|versionName|codePath|firstInstallTime" | tee -a logs/package.log
 
-            # 扩大 logcat 环形缓冲区到 16M 并清空，避免其他 app 日志把本 app 挤掉
-            # 之后用 adb logcat -d 一次性 dump 即可拿到 app 启动/崩溃日志
+            # 扩大 logcat 环形缓冲区到 16M 并清空
             timeout 15 adb logcat -G 16M 2>&1 | tee logs/clear.log
             timeout 15 adb logcat -c 2>&1 | tee -a logs/clear.log
             sleep 1
 
             echo "=== 启动应用主 Activity ===" | tee logs/start.log
-            # 正确的 Activity component(由 resolve-activity 确认): com.lanyeeee.jmcomic_downloader/.MainActivity
             timeout 30 adb shell am start -n "com.lanyeeee.jmcomic_downloader/.MainActivity" 2>&1 | tee -a logs/start.log
             echo "am start exit=$?" | tee -a logs/start.log
-            # monkey 作为兜底启动方式(通过 LAUNCHER intent)
-            timeout 30 adb shell monkey -p "com.lanyeeee.jmcomic_downloader" -c "android.intent.category.LAUNCHER" 1 2>&1 | tee -a logs/start.log
-            # 解析出真正的启动 Activity，确认 component 名是否正确
-            timeout 15 adb shell cmd package resolve-activity --brief com.lanyeeee.jmcomic_downloader 2>&1 | tee -a logs/start.log
 
-            echo "=== 等待 30 秒收集日志 ===" | tee logs/wait.log
-            sleep 30
+            # 关键：启动后立即抓一次 logcat(趁缓冲区新鲜，还没被别的 app 挤掉)
+            echo "=== 启动后立即抓 logcat (5s) ===" | tee logs/logcat-immediate.log
+            sleep 5
+            timeout 60 adb logcat -d -v threadtime -b main -b system -b crash 2>&1 | tee logs/logcat-immediate.log
+
+            # 再启动一次兜底
+            timeout 30 adb shell monkey -p "com.lanyeeee.jmcomic_downloader" -c "android.intent.category.LAUNCHER" 1 2>&1 | tee -a logs/start.log
+
+            echo "=== 再等 20 秒 ===" | tee logs/wait.log
+            sleep 20
 
             # 取应用 PID
             APID=$(timeout 15 adb shell pidof com.lanyeeee.jmcomic_downloader 2>/dev/null | tr -d '\r' | awk '{print $1}')
             echo "app pid=$APID" | tee logs/app-pid.log
+            timeout 15 adb shell "ps -A | grep jmcomic" 2>&1 | tee -a logs/app-pid.log
 
             echo "=== dump 全缓冲区 logcat (16M 缓冲区，一次性 -d) ===" | tee logs/logcat-dump-all.log
             timeout 90 adb logcat -d -v threadtime -b main -b system -b crash 2>&1 | tee logs/logcat-dump-all.log
 
-            echo "=== logcat 中与 app 相关的行 ===" | tee logs/logcat-app.log
-            grep -iE "jmcomic|tauri|rust|panic|wry|webview|chromium|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|FATAL EXCEPTION|signal [0-9]|abort|tombstone|\.MainActivity" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app.log
+            # 关键改进：统计 + 完整输出所有含 lanyeeee/jmcomic 的行(不 tail 截断)
+            echo "=== dump-all 中含 lanyeeee/jmcomic 的行(完整，带计数) ===" | tee logs/logcat-app.log
+            echo "匹配行数:" | tee -a logs/logcat-app.log
+            grep -icE "lanyeeee|jmcomic" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app.log
+            echo "------ 全部匹配行 ------" | tee -a logs/logcat-app.log
+            grep -iE "lanyeeee|jmcomic|tauri|rust|panic|wry|webview|chromium|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|FATAL EXCEPTION|abort|tombstone" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app.log
 
             echo "=== logcat 中含 FATAL/crash 的行 ===" | tee logs/logcat-crash.log
             grep -iE "FATAL EXCEPTION|AndroidRuntime|data_app_crash|data_app_native_crash|signal [0-9]|SIGSEGV|tombstone|jmcomic_downloader.*Exception" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-crash.log
@@ -263,74 +273,29 @@ jobs:
             echo ""
             echo "构建产物在模拟器上启动后抓取的 logcat，用于定位白屏根因。"
             echo ""
-            echo "### logcat-app.log (后台实时抓取，过滤 app/关键词)"
+            echo "### package.log (安装路径 + stopped 状态)"
             echo '```'
-            tail -500 logs/logcat-app.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### logcat-after-start.log (app 进程启动后的全部日志，最关键!)"
-            echo '```'
-            tail -600 logs/logcat-after-start.log 2>/dev/null || echo "(无)"
+            cat logs/package.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-app-pid.log (app pid 行)"
-            echo '```'
-            tail -200 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### ps.log (进程是否存活)"
-            echo '```'
-            cat logs/ps.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### tombstones.log"
-            echo '```'
-            cat logs/tombstones.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### dropbox.log"
-            echo '```'
-            cat logs/dropbox.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### logcat-crash.log (FATAL/crash 行)"
-            echo '```'
-            tail -400 logs/logcat-crash.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### dropbox.log (dropbox 崩溃/ANR 记录)"
-            echo '```'
-            cat logs/dropbox.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### app-pid.log"
+            echo "### app-pid.log (进程是否存活)"
             echo '```'
             cat logs/app-pid.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### clear.log (logcat 缓冲区扩大/清空)"
+            echo "### logcat-immediate.log (启动后立即抓取，含 Start proc / crash)"
             echo '```'
-            cat logs/clear.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### logcat-dump-all.log 大小"
-            echo '```'
-            wc -l logs/logcat-dump-all.log 2>/dev/null || echo "(无)"
+            grep -iE "lanyeeee|jmcomic|tauri|rust|panic|wry|webview|fatal|AndroidRuntime|Start proc|Displayed|ActivityTaskManager" logs/logcat-immediate.log 2>/dev/null | tail -200 || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-full.log 末尾 200 行(兜底)"
+            echo "### logcat-app.log (dump-all 中含 app/关键词的完整行 + 计数)"
             echo '```'
-            tail -200 logs/logcat-full.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### install.log"
-            echo '```'
-            cat logs/install.log 2>/dev/null || echo "(无)"
+            cat logs/logcat-app.log 2>/dev/null | tail -600 || echo "(无)"
             echo '```'
             echo ""
-            echo "### start.log"
+            echo "### logcat-crash.log (FATAL/crash 行)"
             echo '```'
-            cat logs/start.log 2>/dev/null || echo "(无)"
+            cat logs/logcat-crash.log 2>/dev/null | tail -200 || echo "(无)"
             echo '```'
             echo ""
             echo "### activity-stack.log"
@@ -338,9 +303,19 @@ jobs:
             cat logs/activity-stack.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-full.log 末尾 150 行(兜底)"
+            echo "### dropbox.log"
             echo '```'
-            tail -150 logs/logcat-full.log 2>/dev/null || echo "(无)"
+            cat logs/dropbox.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### start.log"
+            echo '```'
+            cat logs/start.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### logcat-full.log 末尾 200 行(兜底)"
+            echo '```'
+            tail -200 logs/logcat-full.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### build.log 末尾 30 行"
