@@ -47,15 +47,14 @@
         overflow: hidden;
       }
       /* 高度链修复：#app 的子元素(n-config-provider 等 naive-ui provider 容器)
-         默认高度=内容高度，导致 h-full 在后代失效。强制所有 #app 后代
-         height:100% + overflow 传递，直到 AppContent 的 h-full 容器。 */
+         默认高度=内容高度，导致 h-full 在后代失效。强制 #app 直接子元素
+         及其子元素 height:100%，让高度传到 AppContent 的 h-full 容器。
+         注意：只覆盖两层(#app > * 和 #app > * > *)，第三层会是 AppContent
+         的子元素(按钮栏等)，不应强制 100% 否则撑开。 */
       #app > * {
         height: 100%;
       }
       #app > * > * {
-        height: 100%;
-      }
-      #app > * > * > * {
         height: 100%;
       }
     </style>
