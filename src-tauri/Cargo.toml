@@ -62,12 +62,14 @@ tracing-subscriber = { version = "0.3.19", features = ["local-time"] }
 # log crate 仍保留：tracing-log 桥接 log facade 时需要。
 log = "0.4"
 
-# 诊断阶段：暂时关闭 strip / lto / panic=abort。
-# - panic=abort 会让 panic 直接终止进程且无回溯，无法定位 Rust run() 失败点。
-# - strip 会剥掉符号，panic 堆栈不可读。
-# 待白屏根因定位后再恢复。
+# 最小体积 release 配置：
+# - strip: 剥掉符号(诊断已不需要堆栈)，大幅缩小 so
+# - lto=true + codegen-units=1: 全量链接优化，去掉死代码
+# - panic=abort: 不带 unwind 表，缩小二进制(panic 仍会通过 boot_diag 输出 payload)
+# - opt-level=z: 优化体积而非速度
 [profile.release]
-strip = false
-lto = false
-codegen-units = 16
-panic = "unwind"
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = "z"

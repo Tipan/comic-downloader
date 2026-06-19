@@ -53,7 +53,9 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          # 只装 arm64(aarch64)：现代安卓手机/模拟器均为 arm64，
+          # 砍掉 armeabi/x86/x86_64 大幅缩小 APK 体积(约 -60%)。
+          targets: aarch64-linux-android
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -179,9 +181,9 @@ jobs:
         run: |
           set -x
           mkdir -p logs
-          # Capture both streams so the artifact upload (always) can show the
-          # real error even when this step fails.
-          pnpm tauri android build --apk -v 2>&1 | tee logs/apk.log
+          # --target aarch64 只构建 arm64 APK(不打包 universal)，
+          # 砍掉 armeabi/x86/x86_64 三个架构的 so，体积大幅缩小。
+          pnpm tauri android build --apk --target aarch64 -v 2>&1 | tee logs/apk.log
           # Preserve pipefail-style behavior
           exit ${PIPESTATUS[0]}
 
@@ -191,6 +193,8 @@ jobs:
         run: |
           set -x
           mkdir -p logs
+          # AAB 仍构建全架构：Google Play 上传后会按设备拆分分发，
+          # 用户实际下载的只是对应架构，不占额外体积。
           pnpm tauri android build --aab -v 2>&1 | tee logs/aab.log
           exit ${PIPESTATUS[0]}
 
