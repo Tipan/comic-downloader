@@ -201,6 +201,30 @@ pub fn run() {
                 "setup: 已创建的 webview windows={:?} (空=窗口创建失败，wryCreate 无消息可处理)",
                 webview_labels
             ));
+
+            // 关键修复：Android(mobile)上 tauri 编译的 context 里 app.windows 为空，
+            // tauri 内部 setup 不会自动创建窗口 → 不发送 CreateWebView 消息 → 白屏。
+            // 这里在用户 setup 里手动创建一个 WebviewWindow，触发 wry 的
+            // InnerWebView::new → MainPipe::send(CreateWebView) → wryCreate 的 looper
+            // callback 收到消息 → 在主线程创建 Android WebView。
+            if app.webview_windows().is_empty() {
+                boot_diag::trace("setup: webview_windows 为空，手动创建 WebviewWindow (Android)");
+                let mut builder = tauri::WebviewWindowBuilder::new(
+                    app,
+                    "main",
+                    tauri::WebviewUrl::App("index.html".into()),
+                )
+                .title("漫画下载器");
+                #[cfg(target_os = "android")]
+                {
+                    builder = builder.inner_size(800.0, 600.0);
+                }
+                match builder.build() {
+                    Ok(_) => boot_diag::trace("setup: 手动创建 WebviewWindow 成功"),
+                    Err(e) => boot_diag::trace(&format!("setup: 手动创建 WebviewWindow 失败: {e:?}")),
+                }
+            }
+
             builder.mount_events(app);
 
             // 安卓上 app_data_dir() 偶尔会失败(权限/路径)，一旦失败原来的 `?` 会让
