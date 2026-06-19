@@ -147,7 +147,22 @@ jobs:
           # 只构建 x86_64 debug APK，模拟器用，构建快
           # 注意：tauri android build 的 --target 接受的是简称(x86_64)，不是完整 triple
           pnpm tauri android build --apk --target x86_64 -v 2>&1 | tee logs/build.log
-          exit ${PIPESTATUS[0]}
+          BUILD_EXIT=${PIPESTATUS[0]}
+
+          # 兜底：如果 tauri.build.gradle.kts 没把 dist 复制进 assets(已确认是白屏根因)，
+          # 手动把 dist 内容复制到 src/main/assets，然后重新跑 gradle assemble 打包。
+          ASSETS_DIR="src-tauri/gen/android/app/src/main/assets"
+          if [ ! -f "$ASSETS_DIR/index.html" ]; then
+            echo "=== tauri 未复制 dist 到 assets，手动复制兜底 ===" | tee -a logs/dist-check.log
+            mkdir -p "$ASSETS_DIR"
+            cp -r dist/* "$ASSETS_DIR/" 2>&1 | tee -a logs/dist-check.log
+            ls -la "$ASSETS_DIR/" 2>&1 | tee -a logs/dist-check.log
+            # 重新打包 universal release apk
+            cd src-tauri/gen/android
+            ./gradlew assembleUniversalRelease -v 2>&1 | tee -a ../../logs/build-repackage.log
+            cd -
+          fi
+          exit $BUILD_EXIT
 
       - name: Search build.log for frontend/dist asset packaging
         run: |
@@ -161,6 +176,12 @@ jobs:
           echo "=== gen/android/app/src/main/assets 目录(前端应被复制到这里) ===" | tee -a logs/build-frontend.log
           ls -la src-tauri/gen/android/app/src/main/assets/ 2>&1 | tee -a logs/build-frontend.log
           find src-tauri/gen/android/app/src/main/assets/ -type f 2>&1 | tee -a logs/build-frontend.log
+          echo "=== tauri.build.gradle.kts 内容(负责复制 frontendDist 到 assets) ===" | tee -a logs/build-frontend.log
+          cat src-tauri/gen/android/app/tauri.build.gradle.kts 2>&1 | tee -a logs/build-frontend.log
+          echo "=== tauri.properties 内容 ===" | tee -a logs/build-frontend.log
+          cat src-tauri/gen/android/app/tauri.properties 2>&1 | tee -a logs/build-frontend.log
+          echo "=== build.log 开头 60 行(看 beforeBuildCommand 是否执行) ===" | tee -a logs/build-frontend.log
+          head -60 logs/build.log 2>&1 | tee -a logs/build-frontend.log
           echo "=== 搜索 build 产物里是否有 index.html ===" | tee -a logs/build-frontend.log
           find src-tauri/gen/android/app/build -name "index.html" 2>&1 | tee -a logs/build-frontend.log
           find src-tauri/gen/android/app/build -path "*assets*" -name "*.js" 2>&1 | head -20 | tee -a logs/build-frontend.log
