@@ -2,7 +2,6 @@
 import { Comic, commands } from '../../bindings.ts'
 import { computed, nextTick, ref, watch, watchEffect } from 'vue'
 import DownloadedComicCard from './components/DownloadedComicCard.vue'
-import { open } from '@tauri-apps/plugin-dialog'
 import { PhFolderOpen } from '@phosphor-icons/vue'
 import { useStore } from '../../store.ts'
 import { DropdownOption, NIcon } from 'naive-ui'
@@ -63,23 +62,6 @@ watch(
   },
   { immediate: true },
 )
-
-async function selectExportDir() {
-  if (store.config === undefined) {
-    return
-  }
-
-  try {
-    const selectedDirPath = await open({ directory: true })
-    if (selectedDirPath === null) {
-      return
-    }
-    store.config.exportDir = selectedDirPath
-  } catch (e) {
-    // Android 上 Tauri dialog 不支持 directory picker，用户可直接编辑输入框
-    console.error('目录选择器不可用，请手动输入路径', e)
-  }
-}
 
 async function showExportDirInFileManager() {
   if (store.config === undefined) {

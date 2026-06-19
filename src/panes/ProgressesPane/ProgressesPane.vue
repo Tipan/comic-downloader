@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { commands, events } from '../../bindings.ts'
-import { open } from '@tauri-apps/plugin-dialog'
 import { PhFolderOpen, PhGearSix } from '@phosphor-icons/vue'
 import { useStore } from '../../store.ts'
 import SettingsDialog from '../../dialogs/SettingsDialog.vue'
@@ -151,23 +150,6 @@ async function showDownloadDirInFileManager() {
   const result = await commands.showPathInFileManager(store.config.downloadDir)
   if (result.status === 'error') {
     console.error(result.error)
-  }
-}
-
-async function selectDownloadDir() {
-  if (store.config === undefined) {
-    return
-  }
-
-  try {
-    const selectedDirPath = await open({ directory: true })
-    if (selectedDirPath === null) {
-      return
-    }
-    store.config.downloadDir = selectedDirPath
-  } catch (e) {
-    // Android 上 Tauri dialog 不支持 directory picker，用户可直接编辑输入框
-    console.error('目录选择器不可用，请手动输入路径', e)
   }
 }
 </script>
