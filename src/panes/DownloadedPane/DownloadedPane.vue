@@ -260,7 +260,7 @@ function useDropdown() {
     <SelectionArea
       class="flex flex-col overflow-auto box-border px-2 selection-container mb-2 flex-1 min-h-0"
       ref="selectionAreaRef"
-      :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
+      :options="{ selectables: '.selectable', features: { deselectOnBlur: true, touch: false } }"
       @contextmenu="showDropdown"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"

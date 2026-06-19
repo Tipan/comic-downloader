@@ -259,7 +259,7 @@ function useDropdown() {
 <template>
   <SelectionArea
     class="h-full flex flex-col selection-container px-2"
-    :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
+    :options="{ selectables: '.selectable', features: { deselectOnBlur: true, touch: false } }"
     @contextmenu="showDropdown"
     @touchstart="onTouchStart"
     @touchend="onTouchEnd"

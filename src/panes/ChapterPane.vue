@@ -223,7 +223,7 @@ function isDownloading(state: State) {
       v-else
       ref="selectionAreaRef"
       class="selection-container flex flex-col flex-1 min-h-0 px-2 pt-0 overflow-auto"
-      :options="{ selectables: '.selectable', features: { deselectOnBlur: true } }"
+      :options="{ selectables: '.selectable', features: { deselectOnBlur: true, touch: false } }"
       @contextmenu="onContextMenu"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
