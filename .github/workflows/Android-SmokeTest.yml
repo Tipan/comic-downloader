@@ -177,15 +177,11 @@ jobs:
 
             timeout 15 adb logcat -c 2>&1 | tee -a logs/install.log
 
-            # 清空旧 logcat，然后后台持续抓取全部缓冲区到文件
-            # 关键：logcat main 缓冲区很小，模拟器上其他 app 启动会很快把本 app 的日志挤掉。
-            # 必须在启动 app 前就开始后台抓取，才能拿到 app 的启动/崩溃日志。
-            timeout 15 adb logcat -c 2>&1 | tee logs/clear.log
-            timeout 15 adb logcat -G 16M 2>&1 | tee -a logs/clear.log
-            nohup adb logcat -v threadtime -b main -b system -b crash > logs/logcat-live.log 2>&1 &
-            LOGCAT_PID=$!
-            echo "logcat capture pid=$LOGCAT_PID" | tee logs/capture.log
-            sleep 2
+            # 扩大 logcat 环形缓冲区到 16M 并清空，避免其他 app 日志把本 app 挤掉
+            # 之后用 adb logcat -d 一次性 dump 即可拿到 app 启动/崩溃日志
+            timeout 15 adb logcat -G 16M 2>&1 | tee logs/clear.log
+            timeout 15 adb logcat -c 2>&1 | tee -a logs/clear.log
+            sleep 1
 
             echo "=== 启动应用主 Activity ===" | tee logs/start.log
             # 正确的 Activity component(由 resolve-activity 确认): com.lanyeeee.jmcomic_downloader/.MainActivity
@@ -194,30 +190,36 @@ jobs:
             # monkey 作为兜底启动方式(通过 LAUNCHER intent)
             timeout 30 adb shell monkey -p "com.lanyeeee.jmcomic_downloader" -c "android.intent.category.LAUNCHER" 1 2>&1 | tee -a logs/start.log
             # 解析出真正的启动 Activity，确认 component 名是否正确
-            timeout 15 adb shell cmd package resolve-activity --brief com.lanyeeee.jmcomic_downloader 2>&1 | tee -a logs/start.log
+            timeout 15 adb shell cmd package resolve-activity --brief com.lanyebbe.jmcomic_downloader 2>&1 | tee -a logs/start.log
 
             echo "=== 等待 30 秒收集日志 ===" | tee logs/wait.log
             sleep 30
 
             # 取应用 PID
-            APID=$(timeout 15 adb shell pidof com.lanyeeee.jmcomic_downloader 2>/dev/null | tr -d '\r' | awk '{print $1}')
+            APID=$(timeout 15 adb shell pidof com.lanyebbe.jmcomic_downloader 2>/dev/null | tr -d '\r' | awk '{print $1}')
             echo "app pid=$APID" | tee logs/app-pid.log
 
-            # 停止后台 logcat 抓取
-            kill $LOGCAT_PID 2>/dev/null || true
-            sleep 2
+            echo "=== dump 全缓冲区 logcat (16M 缓冲区，一次性 -d) ===" | tee logs/logcat-dump-all.log
+            timeout 90 adb logcat -d -v threadtime -b main -b system -b crash 2>&1 | tee logs/logcat-dump-all.log
 
-            echo "=== logcat-live.log 中与 app 相关的行 (pid/包名/关键词) ===" | tee logs/logcat-app.log
-            grep -iE "jmcomic|tauri|rust|panic|wry|webview|chromium|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|FATAL EXCEPTION|signal [0-9]|abort|tombstone|\.MainActivity" logs/logcat-live.log 2>/dev/null | tee -a logs/logcat-app.log
+            echo "=== logcat 中与 app 相关的行 ===" | tee logs/logcat-app.log
+            grep -iE "jmcomic|tauri|rust|panic|wry|webview|chromium|fatal|AndroidRuntime|consoleMessage|==== PANIC ====|FATAL EXCEPTION|signal [0-9]|abort|tombstone|\.MainActivity" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app.log
 
-            echo "=== logcat-live.log 中含 FATAL/crash 的行 ===" | tee logs/logcat-crash.log
-            grep -iE "FATAL EXCEPTION|AndroidRuntime|data_app_crash|data_app_native_crash|signal [0-9]|SIGSEGV|tombstone|jmcomic_downloader.*Exception" logs/logcat-live.log 2>/dev/null | tee -a logs/logcat-crash.log
+            echo "=== logcat 中含 FATAL/crash 的行 ===" | tee logs/logcat-crash.log
+            grep -iE "FATAL EXCEPTION|AndroidRuntime|data_app_crash|data_app_native_crash|signal [0-9]|SIGSEGV|tombstone|jmcomic_downloader.*Exception" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-crash.log
+
+            echo "=== 应用进程专属 logcat (pid=$APID) ===" | tee logs/logcat-app-pid.log
+            if [ -n "$APID" ]; then
+              grep -E "(^|$APID) " logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app-pid.log
+            else
+              echo "(app process not running — likely crashed on startup)" | tee -a logs/logcat-app-pid.log
+            fi
 
             echo "=== dropbox 崩溃记录 ===" | tee logs/dropbox.log
             timeout 30 adb shell dumpsys dropbox --print 2>&1 | grep -iE "jmcomic|crash|anr|data_app" | tail -80 | tee -a logs/dropbox.log
 
-            echo "=== logcat-live.log 末尾 200 行(兜底) ===" | tee logs/logcat-full.log
-            tail -200 logs/logcat-live.log 2>/dev/null | tee -a logs/logcat-full.log
+            echo "=== logcat-dump-all 末尾 200 行(兜底) ===" | tee logs/logcat-full.log
+            tail -200 logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-full.log
 
             echo "=== 当前 Activity 栈 ===" | tee logs/activity-stack.log
             timeout 30 adb shell dumpsys activity activities 2>&1 | tee logs/activity-stack-full.log
@@ -254,6 +256,11 @@ jobs:
             tail -500 logs/logcat-app.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
+            echo "### logcat-app-pid.log (app pid 相关行)"
+            echo '```'
+            tail -300 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
             echo "### logcat-crash.log (FATAL/crash 行)"
             echo '```'
             tail -400 logs/logcat-crash.log 2>/dev/null || echo "(无)"
@@ -269,9 +276,14 @@ jobs:
             cat logs/app-pid.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### capture.log"
+            echo "### clear.log (logcat 缓冲区扩大/清空)"
             echo '```'
-            cat logs/capture.log 2>/dev/null || echo "(无)"
+            cat logs/clear.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### logcat-dump-all.log 大小"
+            echo '```'
+            wc -l logs/logcat-dump-all.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### logcat-full.log 末尾 200 行(兜底)"
