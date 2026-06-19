@@ -13,9 +13,18 @@
       /* 触屏优化：去掉点击高亮、防滚动穿透 */
       html, body {
         -webkit-tap-highlight-color: transparent;
-        overscroll-behavior: none;
+        /* contain 而非 none：阻止滚动穿透到 body，但不阻止内部 overflow 容器触摸滚动 */
+        overscroll-behavior: contain;
         margin: 0;
         padding: 0;
+        height: 100%;
+      }
+      /* 触摸滚动支持：确保所有 overflow 滚动容器在 Android WebView 上可触摸滑动。
+         -webkit-overflow-scrolling 触发硬件加速滚动；
+         touch-action: pan-y 允许垂直滑动不触发浏览器手势。 */
+      .overflow-auto, .overflow-y-auto, .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
       }
       /* 安全区避让：避开顶部状态栏和底部导航栏，防止内容被遮挡无法触屏。
          --safe-top/--safe-bottom 由下面 JS 从 Android 实际 inset 计算，

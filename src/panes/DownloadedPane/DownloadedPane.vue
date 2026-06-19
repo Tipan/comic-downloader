@@ -69,12 +69,16 @@ async function selectExportDir() {
     return
   }
 
-  const selectedDirPath = await open({ directory: true })
-  if (selectedDirPath === null) {
-    return
+  try {
+    const selectedDirPath = await open({ directory: true })
+    if (selectedDirPath === null) {
+      return
+    }
+    store.config.exportDir = selectedDirPath
+  } catch (e) {
+    // Android 上 Tauri dialog 不支持 directory picker，用户可直接编辑输入框
+    console.error('目录选择器不可用，请手动输入路径', e)
   }
-
-  store.config.exportDir = selectedDirPath
 }
 
 async function showExportDirInFileManager() {
@@ -250,7 +254,9 @@ function useDropdown() {
     <div class="flex gap-2 box-border px-2 pt-2">
       <n-input-group>
         <n-input-group-label size="medium">导出目录</n-input-group-label>
-        <n-input v-model:value="store.config.exportDir" size="medium" readonly @click="selectExportDir" />
+        <!-- Android 上 dialog 不支持目录选择，改为可编辑输入，用户手动填路径。
+             打开按钮仍可调起文件管理器查看。 -->
+        <n-input v-model:value="store.config.exportDir" size="medium" />
         <n-button class="w-12" size="medium" @click="showExportDirInFileManager">
           <template #icon>
             <n-icon size="20">
@@ -310,6 +316,9 @@ function useDropdown() {
 <style scoped>
 .selection-container {
   @apply select-none overflow-auto;
+  /* 触屏优化：垂直滚动优先于框选 */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .selection-container .selected {

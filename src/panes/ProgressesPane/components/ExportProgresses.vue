@@ -292,6 +292,9 @@ function useDropdown() {
 <style scoped>
 .selection-container {
   @apply select-none overflow-auto;
+  /* 触屏优化：垂直滚动优先于框选 */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .selection-container .selected {

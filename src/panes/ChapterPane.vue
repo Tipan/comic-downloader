@@ -283,6 +283,10 @@ function isDownloading(state: State) {
 <style scoped>
 .selection-container {
   @apply select-none overflow-auto;
+  /* 触屏优化：垂直滚动优先于框选(SelectionArea 的 touchmove 拦截会阻止滚动)。
+     pan-y 让浏览器处理垂直滑动，框选在触屏上退化为可选项。 */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .selection-container .selected {
