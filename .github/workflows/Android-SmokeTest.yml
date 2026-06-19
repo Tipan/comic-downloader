@@ -211,24 +211,24 @@ jobs:
             echo "=== 应用进程专属 logcat (pid=$APID) ===" | tee logs/logcat-app-pid.log
             if [ -n "$APID" ]; then
               grep -E " $APID " logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app-pid.log
-            else
-              echo "(app process not running at capture time — grep dump 里所有含 jmcomic_downloader 进程名的行)" | tee -a logs/logcat-app-pid.log
-              grep -iE "jmcomic_downloader|MainActivity" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app-pid.log
             fi
+            # 不管 pidof 是否拿到，都把 "Start proc ... jmcomic_downloader" 这行之后的全部日志单独存一份
+            # 这是最关键的：app 进程起来之后到底干了什么(panic/webview/报错)
+            echo "=== app 进程启动后的全部日志 (从 Start proc jmcomic 起) ===" | tee logs/logcat-after-start.log
+            awk '/Start proc [0-9]+:com\.lanyeeee\.jmcomic_downloader/{found=1} found{print}' logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-after-start.log
+            LINES=$(wc -l < logs/logcat-after-start.log 2>/dev/null || echo 0)
+            echo "logcat-after-start 行数: $LINES" | tee -a logs/logcat-after-start.log
 
-            echo "=== tombstone 文件列表 + 内容 ===" | tee logs/tombstones.log
+            echo "=== ps 确认进程是否还活着 ===" | tee logs/ps.log
+            timeout 15 adb shell "ps -A | grep jmcomic" 2>&1 | tee -a logs/ps.log
+            timeout 15 adb shell pidof com.lanyebbe.jmcomic_downloader 2>&1 | tee -a logs/ps.log
+
+            echo "=== tombstone 文件列表 ===" | tee logs/tombstones.log
             timeout 20 adb shell ls -la /data/tombstones/ 2>&1 | tee -a logs/tombstones.log
-            for ts in $(timeout 20 adb shell ls /data/tombstones/ 2>/dev/null | tr -d '\r'); do
-              echo "--- $ts ---" | tee -a logs/tombstones.log
-              timeout 15 adb shell cat /data/tombstones/$ts 2>&1 | tail -60 | tee -a logs/tombstones.log
-            done
 
-            echo "=== dmesg 末尾(含 native crash/OOM kill) ===" | tee logs/dmesg.log
-            timeout 20 adb shell dmesg 2>&1 | grep -iE "jmcomic|tombstone|lowmemory|kill.*4928|oom|signal" | tail -40 | tee -a logs/dmesg.log
-
-            echo "=== dropbox 崩溃记录 ===" | tee logs/dropbox.log
+            echo "=== dropbox 全部(app 相关) ===" | tee logs/dropbox.log
             timeout 30 adb shell dumpsys dropbox --print 2>&1 | tee logs/dropbox-all.log
-            grep -iE "jmcomic|crash|anr|data_app" logs/dropbox-all.log 2>/dev/null | tail -80 | tee -a logs/dropbox.log
+            grep -iE "jmcomic|data_app_crash|data_app_native|data_app_anr" logs/dropbox-all.log 2>/dev/null | tail -60 | tee -a logs/dropbox.log
 
             echo "=== logcat-dump-all 末尾 200 行(兜底) ===" | tee logs/logcat-full.log
             tail -200 logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-full.log
@@ -268,19 +268,29 @@ jobs:
             tail -500 logs/logcat-app.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-app-pid.log (app pid/包名相关全部行)"
+            echo "### logcat-after-start.log (app 进程启动后的全部日志，最关键!)"
             echo '```'
-            tail -400 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### tombstones.log (native crash tombstone)"
-            echo '```'
-            tail -200 logs/tombstones.log 2>/dev/null || echo "(无)"
+            tail -600 logs/logcat-after-start.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### dmesg.log (native/OOM kill)"
+            echo "### logcat-app-pid.log (app pid 行)"
             echo '```'
-            cat logs/dmesg.log 2>/dev/null || echo "(无)"
+            tail -200 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### ps.log (进程是否存活)"
+            echo '```'
+            cat logs/ps.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### tombstones.log"
+            echo '```'
+            cat logs/tombstones.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### dropbox.log"
+            echo '```'
+            cat logs/dropbox.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### logcat-crash.log (FATAL/crash 行)"
