@@ -90,6 +90,21 @@ jobs:
       - name: Initialize Tauri Android project
         run: pnpm tauri android init
 
+      - name: Add storage permissions to AndroidManifest
+        # Android 11+ scoped storage 限制 app 写公共目录(/storage/emulated/0/Download)。
+        # 加 MANAGE_EXTERNAL_STORAGE 让用户可授权 app 访问所有文件，
+        # 加 requestLegacyExternalStorage 兼容 Android 10。
+        # 前端首次下载前会用 @tauri-apps/plugin-shell 或 native intent 请求权限。
+        run: |
+          set -x
+          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          # 在 </application> 前加 requestLegacyExternalStorage
+          sed -i 's|<application|<application android:requestLegacyExternalStorage="true"|' "$MANIFEST"
+          # 在 </manifest> 前加权限
+          sed -i 's|</manifest>|    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n</manifest>|' "$MANIFEST"
+          echo "=== AndroidManifest.xml ==="
+          cat "$MANIFEST"
+
       - name: Copy frontend dist into Android assets (fix white screen)
         # tauri.build.gradle.kts 在当前版本没有把 frontendDist(dist/) 复制进 APK 的
         # assets，导致 WebView 加载 tauri://localhost/index.html 404 → 白屏。

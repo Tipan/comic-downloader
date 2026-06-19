@@ -62,6 +62,28 @@ onMounted(async () => {
     console.error(store.initError, e)
     return
   }
+  // Android: 检查存储权限——下载到公共目录(/storage/emulated/0/...)需要
+  // 「所有文件访问权限」，否则会 operation not permitted。
+  try {
+    const hasPermission = await commands.checkStoragePermission()
+    if (!hasPermission) {
+      notification.warning({
+        title: '需要存储权限',
+        content: '下载到公共目录需要「所有文件访问权限」，点击下方按钮前往授权',
+        duration: 0,
+        action: () => (
+          <n-button
+            type="primary"
+            size="small"
+            onClick={() => commands.requestStoragePermission()}>
+            前往授权
+          </n-button>
+        ),
+      })
+    }
+  } catch (e) {
+    console.error('检查存储权限失败', e)
+  }
   // 如果username和password不为空，尝试登录
   if (store.config.username !== '' && store.config.password !== '') {
     try {

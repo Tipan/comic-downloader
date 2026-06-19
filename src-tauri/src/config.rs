@@ -98,11 +98,28 @@ impl Config {
     }
 
     pub fn default(app_data_dir: &Path) -> Config {
+        // Android 上 app_data_dir 是私有目录，用户无法访问。
+        // 默认下载到公共 Download 目录(需 MANAGE_EXTERNAL_STORAGE 权限)。
+        #[cfg(target_os = "android")]
+        let (download_dir, export_dir) = {
+            let public_download = PathBuf::from("/storage/emulated/0/Download");
+            (
+                public_download.join("漫画下载"),
+                public_download.join("漫画导出"),
+            )
+        };
+        #[cfg(not(target_os = "android"))]
+        let (download_dir, export_dir) = {
+            (
+                app_data_dir.join("漫画下载"),
+                app_data_dir.join("漫画导出"),
+            )
+        };
         Config {
             username: String::new(),
             password: String::new(),
-            download_dir: app_data_dir.join("漫画下载"),
-            export_dir: app_data_dir.join("漫画导出"),
+            download_dir,
+            export_dir,
             download_format: DownloadFormat::default(),
             dir_fmt: "{comic_title}/{chapter_title}".to_string(),
             proxy_mode: ProxyMode::default(),

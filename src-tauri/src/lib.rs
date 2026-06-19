@@ -144,6 +144,8 @@ pub fn run() {
             download_all_favorites,
             update_downloaded_comics,
             show_path_in_file_manager,
+            check_storage_permission,
+            request_storage_permission,
             sync_favorite_folder,
             get_downloaded_comics,
             export_cbz,

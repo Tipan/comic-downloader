@@ -139,6 +139,22 @@ async showPathInFileManager(path: string) : Promise<Result<null, CommandError>> 
     else return { status: "error", error: e  as any };
 }
 },
+async checkStoragePermission() : Promise<boolean> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_storage_permission") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async requestStoragePermission() : Promise<Result<null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("request_storage_permission") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async syncFavoriteFolder() : Promise<Result<null, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("sync_favorite_folder") };
