@@ -13,6 +13,9 @@ export type ProgressesPaneTabName = 'uncompleted' | 'completed' | 'export'
 
 const store = useStore()
 
+// 手机端把下载目录栏抽到 AppContent 顶部，传 hideDownloadBar=true 隐藏此处的目录栏
+defineProps<{ hideDownloadBar?: boolean }>()
+
 const settingsDialogShowing = ref<boolean>(false)
 
 const downloadSpeed = ref<string>('')
@@ -156,7 +159,7 @@ async function showDownloadDirInFileManager() {
 
 <template>
   <div v-if="store.config !== undefined" class="flex flex-col flex-1 overflow-auto">
-    <div class="flex gap-2 box-border px-2 pt-2.5">
+    <div v-if="!hideDownloadBar" class="flex gap-2 box-border px-2 pt-2.5">
       <n-input-group class="">
         <n-input-group-label size="medium">下载目录</n-input-group-label>
         <!-- Android 上 dialog 不支持目录选择，改为可编辑输入，用户手动填路径。

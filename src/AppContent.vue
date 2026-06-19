@@ -13,6 +13,7 @@ import DownloadedPane from './panes/DownloadedPane/DownloadedPane.vue'
 import { useStore } from './store.ts'
 import LogDialog from './dialogs/LogDialog.vue'
 import WeeklyPane from './panes/WeeklyPane.vue'
+import MobileDownloadBar from './components/MobileDownloadBar.vue'
 
 const store = useStore()
 
@@ -118,8 +119,60 @@ onMounted(async () => {
     <span class="text-gray-4">加载中...</span>
   </div>
   <!-- 正常界面：手机单栏堆叠，PC(md+)左右双栏 -->
+  <!-- 手机：顶部按钮栏(固定) + 下载目录栏(固定) + 全屏 tab(列表/进度共享) -->
+  <!-- PC：左右双栏(列表 | 进度) -->
   <div v-else class="h-full flex flex-col md:flex-row overflow-hidden">
-    <n-tabs class="h-full w-full md:w-1/2" v-model:value="store.currentTabName" type="line" size="medium" animated>
+    <!-- 手机顶部按钮栏(固定高度)；PC 放右栏 -->
+    <div class="flex flex-wrap px-2 py-1 gap-2 items-center md:hidden">
+      <n-button type="primary" size="medium" @click="loginDialogShowing = true">
+        <template #icon>
+          <n-icon>
+            <PhUser />
+          </n-icon>
+        </template>
+        登录
+      </n-button>
+      <n-button size="medium" @click="logViewerShowing = true">
+        <template #icon>
+          <n-icon size="20">
+            <PhClockCounterClockwise />
+          </n-icon>
+        </template>
+        日志
+      </n-button>
+      <n-button size="medium" @click="aboutDialogShowing = true">
+        <template #icon>
+          <n-icon size="20">
+            <PhInfo />
+          </n-icon>
+        </template>
+        关于
+      </n-button>
+      <div v-if="store.userProfile !== undefined" class="flex items-center ml-auto overflow-hidden">
+        <n-avatar
+          class="flex-shrink-0"
+          round
+          :size="40"
+          :src="store.userProfile.photo"
+          fallback-src="https://cdn-msp.18comic.vip/templates/frontend/airav/img/title-png/more-ms-jm.webp?v=2" />
+        <span class="whitespace-nowrap text-ellipsis overflow-hidden" :title="store.userProfile.username">
+          {{ store.userProfile.username }}
+        </span>
+      </div>
+    </div>
+
+    <!-- 手机：下载目录栏(固定，从 ProgressesPane 抽出)；PC 在右栏 -->
+    <div v-if="store.config !== undefined" class="md:hidden flex-shrink-0">
+      <MobileDownloadBar />
+    </div>
+
+    <!-- 主 tab 区：手机占满剩余高度；PC 左半 -->
+    <n-tabs
+      class="flex-1 min-h-0 w-full md:w-1/2 md:flex-none"
+      v-model:value="store.currentTabName"
+      type="line"
+      size="medium"
+      animated>
       <n-tab-pane class="h-full overflow-auto p-0!" name="search" tab="搜索" display-directive="show">
         <SearchPane />
       </n-tab-pane>
@@ -135,8 +188,14 @@ onMounted(async () => {
       <n-tab-pane class="h-full overflow-auto p-0!" name="chapter" tab="章节详情" display-directive="show">
         <ChapterPane />
       </n-tab-pane>
+      <!-- 手机：下载进度作为独立 tab，避免上下平分导致列表区太小 -->
+      <n-tab-pane class="h-full overflow-auto p-0! md:hidden" name="progress" tab="下载进度" display-directive="show">
+        <ProgressesPane :hide-download-bar="true" />
+      </n-tab-pane>
     </n-tabs>
-    <div class="w-full md:w-1/2 overflow-auto flex flex-col">
+
+    <!-- PC 右栏：按钮栏 + 进度区 -->
+    <div class="hidden md:flex md:w-1/2 md:flex-none h-full overflow-auto flex-col">
       <div class="flex flex-wrap px-2 py-1 gap-2 items-center">
         <n-button type="primary" size="medium" @click="loginDialogShowing = true">
           <template #icon>
