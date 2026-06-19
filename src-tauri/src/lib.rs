@@ -38,11 +38,11 @@ mod boot_diag {
     use std::io::Write;
 
     fn logcat(msg: &str) {
-        use log::Level;
+        use log::LevelFilter;
         // 初始化一次 android_logger(幂等)
         let _ = android_logger::init_once(
             android_logger::Config::default()
-                .with_max_level(Level::Trace)
+                .with_max_level(LevelFilter::Trace)
                 .with_tag("jmcomic-rust"),
         );
         log::info!("{msg}");
