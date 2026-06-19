@@ -67,7 +67,7 @@ async function getWeekly() {
         :key="weeklyType.id"
         :name="weeklyType.id"
         :tab="weeklyType.title">
-        <div v-if="store.getWeeklyResult !== undefined" class="flex flex-col gap-row-2 overflow-auto box-border px-2">
+        <div v-if="store.getWeeklyResult !== undefined" class="flex flex-col gap-row-2 overflow-auto box-border px-2 flex-1 min-h-0">
           <ComicCard
             v-for="comicInWeekly in store.getWeeklyResult.list"
             :key="comicInWeekly.id"
