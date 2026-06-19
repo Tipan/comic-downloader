@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { commands } from '../bindings.ts'
 import { PhFolderOpen, PhGearSix } from '@phosphor-icons/vue'
-import { ref } from 'vue'
 import { useStore } from '../store.ts'
-import SettingsDialog from '../dialogs/SettingsDialog.vue'
 
 const store = useStore()
-const settingsDialogShowing = ref<boolean>(false)
+const emit = defineEmits<{ 'open-settings': [] }>()
 
 async function showDownloadDirInFileManager() {
   if (store.config === undefined) {
@@ -20,7 +18,7 @@ async function showDownloadDirInFileManager() {
 </script>
 
 <template>
-  <div v-if="store.config !== undefined" class="flex gap-2 box-border px-2 py-1">
+  <div v-if="store.config !== undefined" class="flex gap-2 box-border px-2 py-1 overflow-hidden">
     <n-input-group class="">
       <n-input-group-label size="medium">下载目录</n-input-group-label>
       <n-input v-model:value="store.config.downloadDir" size="medium" />
@@ -32,7 +30,7 @@ async function showDownloadDirInFileManager() {
         </template>
       </n-button>
     </n-input-group>
-    <n-button size="medium" @click="settingsDialogShowing = true">
+    <n-button size="medium" @click="emit('open-settings')">
       <template #icon>
         <n-icon size="20">
           <PhGearSix />
@@ -40,6 +38,5 @@ async function showDownloadDirInFileManager() {
       </template>
       配置
     </n-button>
-    <SettingsDialog v-model:showing="settingsDialogShowing" />
   </div>
 </template>

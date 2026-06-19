@@ -14,6 +14,7 @@ import { useStore } from './store.ts'
 import LogDialog from './dialogs/LogDialog.vue'
 import WeeklyPane from './panes/WeeklyPane.vue'
 import MobileDownloadBar from './components/MobileDownloadBar.vue'
+import SettingsDialog from './dialogs/SettingsDialog.vue'
 
 const store = useStore()
 
@@ -23,6 +24,7 @@ const notification = useNotification()
 const loginDialogShowing = ref<boolean>(false)
 const aboutDialogShowing = ref<boolean>(false)
 const logViewerShowing = ref<boolean>(false)
+const settingsDialogShowing = ref<boolean>(false)
 
 watch(
   () => store.config,
@@ -162,9 +164,7 @@ onMounted(async () => {
     </div>
 
     <!-- 手机：下载目录栏(固定，从 ProgressesPane 抽出)；PC 在右栏 -->
-    <div v-if="store.config !== undefined" class="md:hidden flex-shrink-0">
-      <MobileDownloadBar />
-    </div>
+    <MobileDownloadBar v-if="store.config !== undefined" class="md:hidden flex-shrink-0" @open-settings="settingsDialogShowing = true" />
 
     <!-- 主 tab 区：手机占满剩余高度；PC 左半 -->
     <n-tabs
@@ -238,6 +238,7 @@ onMounted(async () => {
     <LoginDialog v-model:showing="loginDialogShowing" />
     <AboutDialog v-model:showing="aboutDialogShowing" />
     <LogDialog v-model:showing="logViewerShowing" />
+    <SettingsDialog v-model:showing="settingsDialogShowing" />
   </div>
 </template>
 
