@@ -41,8 +41,8 @@ jobs:
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
           # 模拟器系统镜像（x86_64，runner 支持 KVM 硬件加速）
-          # 用 api 30，启动快、稳定
-          sdkmanager "system-images;android-30;google_apis;x86_64"
+          # 用 api 29 default，CI 上启动最稳最快
+          sdkmanager "system-images;android-29;default;x86_64"
           yes | sdkmanager --licenses || true
 
       - name: Set Android environment variables
@@ -155,15 +155,16 @@ jobs:
         # 用 reactivecircus/android-emulator-runner：它负责启动模拟器并等到 sys.boot_completed
         # 再跑 script。之前手动启动会卡在冷启动。script 里所有 adb 调用一律用 timeout 包裹，
         # 避免任何一条 adb 命令挂起导致整个 script 被隐藏超时 kill。
+        # api 29 更轻量，CI 模拟器启动成功率最高。
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 29
           arch: x86_64
-          target: google_apis
+          target: default
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -no-metrics
           disable-animations: true
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           script: |
             set +e
             mkdir -p logs
