@@ -210,13 +210,25 @@ jobs:
 
             echo "=== 应用进程专属 logcat (pid=$APID) ===" | tee logs/logcat-app-pid.log
             if [ -n "$APID" ]; then
-              grep -E "(^|$APID) " logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app-pid.log
+              grep -E " $APID " logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app-pid.log
             else
-              echo "(app process not running — likely crashed on startup)" | tee -a logs/logcat-app-pid.log
+              echo "(app process not running at capture time — grep dump 里所有含 jmcomic_downloader 进程名的行)" | tee -a logs/logcat-app-pid.log
+              grep -iE "jmcomic_downloader|MainActivity" logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-app-pid.log
             fi
 
+            echo "=== tombstone 文件列表 + 内容 ===" | tee logs/tombstones.log
+            timeout 20 adb shell ls -la /data/tombstones/ 2>&1 | tee -a logs/tombstones.log
+            for ts in $(timeout 20 adb shell ls /data/tombstones/ 2>/dev/null | tr -d '\r'); do
+              echo "--- $ts ---" | tee -a logs/tombstones.log
+              timeout 15 adb shell cat /data/tombstones/$ts 2>&1 | tail -60 | tee -a logs/tombstones.log
+            done
+
+            echo "=== dmesg 末尾(含 native crash/OOM kill) ===" | tee logs/dmesg.log
+            timeout 20 adb shell dmesg 2>&1 | grep -iE "jmcomic|tombstone|lowmemory|kill.*4928|oom|signal" | tail -40 | tee -a logs/dmesg.log
+
             echo "=== dropbox 崩溃记录 ===" | tee logs/dropbox.log
-            timeout 30 adb shell dumpsys dropbox --print 2>&1 | grep -iE "jmcomic|crash|anr|data_app" | tail -80 | tee -a logs/dropbox.log
+            timeout 30 adb shell dumpsys dropbox --print 2>&1 | tee logs/dropbox-all.log
+            grep -iE "jmcomic|crash|anr|data_app" logs/dropbox-all.log 2>/dev/null | tail -80 | tee -a logs/dropbox.log
 
             echo "=== logcat-dump-all 末尾 200 行(兜底) ===" | tee logs/logcat-full.log
             tail -200 logs/logcat-dump-all.log 2>/dev/null | tee -a logs/logcat-full.log
@@ -256,9 +268,19 @@ jobs:
             tail -500 logs/logcat-app.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
-            echo "### logcat-app-pid.log (app pid 相关行)"
+            echo "### logcat-app-pid.log (app pid/包名相关全部行)"
             echo '```'
-            tail -300 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
+            tail -400 logs/logcat-app-pid.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### tombstones.log (native crash tombstone)"
+            echo '```'
+            tail -200 logs/tombstones.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### dmesg.log (native/OOM kill)"
+            echo '```'
+            cat logs/dmesg.log 2>/dev/null || echo "(无)"
             echo '```'
             echo ""
             echo "### logcat-crash.log (FATAL/crash 行)"
