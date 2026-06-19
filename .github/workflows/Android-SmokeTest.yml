@@ -310,6 +310,17 @@ jobs:
             echo "=== 截图 ===" | tee logs/screenshot.log
             timeout 30 adb shell screencap -p /sdcard/screen.png 2>&1 | tee -a logs/screenshot.log
             timeout 30 adb pull /sdcard/screen.png logs/screen.png 2>&1 | tee -a logs/screenshot.log
+            if [ -f logs/screen.png ]; then
+              echo "截图文件大小: $(wc -c < logs/screen.png) bytes" | tee -a logs/screenshot.log
+            fi
+
+            # uiautomator dump：抓取当前 UI 层级 XML，能看到 WebView 里渲染的文本
+            # (白屏=只有 WebView 节点无文本；正常=有"加载中"/登录按钮等)
+            echo "=== uiautomator dump (UI 层级，含 WebView 渲染文本) ===" | tee logs/ui-dump.log
+            timeout 30 adb shell uiautomator dump /sdcard/ui.xml 2>&1 | tee -a logs/ui-dump.log
+            timeout 15 adb pull /sdcard/ui.xml logs/ui.xml 2>&1 | tee -a logs/ui-dump.log
+            echo "--- ui.xml 内容 ---" | tee -a logs/ui-dump.log
+            cat logs/ui.xml 2>&1 | tee -a logs/ui-dump.log
 
             # 永远返回 0，让 upload/comment 步骤能跑
             exit 0
@@ -376,6 +387,11 @@ jobs:
             echo "### activity-stack.log"
             echo '```'
             cat logs/activity-stack.log 2>/dev/null || echo "(无)"
+            echo '```'
+            echo ""
+            echo "### ui-dump.log (uiautomator UI 层级，含 WebView 渲染文本，判断是否白屏)"
+            echo '```'
+            cat logs/ui-dump.log 2>/dev/null | tail -120 || echo "(无)"
             echo '```'
             echo ""
             echo "### dropbox.log"
