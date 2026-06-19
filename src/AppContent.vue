@@ -106,7 +106,7 @@ onMounted(async () => {
 
 <template>
   <!-- 初始化错误：显示错误信息而非白屏 -->
-  <div v-if="store.initError" class="h-screen flex items-center justify-center p-4">
+  <div v-if="store.initError" class="h-full flex items-center justify-center p-4">
     <div class="max-w-md text-center">
       <h2 class="text-lg font-bold text-red-5 mb-2">应用初始化失败</h2>
       <pre class="text-sm text-gray-6 whitespace-pre-wrap break-all">{{ store.initError }}</pre>
@@ -114,11 +114,11 @@ onMounted(async () => {
     </div>
   </div>
   <!-- 配置加载中 -->
-  <div v-else-if="store.config === undefined" class="h-screen flex items-center justify-center">
+  <div v-else-if="store.config === undefined" class="h-full flex items-center justify-center">
     <span class="text-gray-4">加载中...</span>
   </div>
   <!-- 正常界面：手机单栏堆叠，PC(md+)左右双栏 -->
-  <div v-else class="h-screen flex flex-col md:flex-row overflow-hidden">
+  <div v-else class="h-full flex flex-col md:flex-row overflow-hidden">
     <n-tabs class="h-full w-full md:w-1/2" v-model:value="store.currentTabName" type="line" size="medium" animated>
       <n-tab-pane class="h-full overflow-auto p-0!" name="search" tab="搜索" display-directive="show">
         <SearchPane />

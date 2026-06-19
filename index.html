@@ -14,6 +14,28 @@
       html, body {
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior: none;
+        margin: 0;
+        padding: 0;
+      }
+      /* 安全区避让：避开顶部状态栏和底部导航栏，防止内容被遮挡无法触屏。
+         --safe-top/--safe-bottom 由下面 JS 从 Android 实际 inset 计算，
+         env() 作为 CSS 原生 fallback(viewport-fit=cover 下 Chromium 支持)。 */
+      :root {
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+      }
+      #app {
+        box-sizing: border-box;
+        /* height: 100vh 让 #app 撑满视口，padding(安全区) 包含在内部，
+           AppContent 用 h-full 撑满 #app，不会因 padding 溢出 */
+        height: 100vh;
+        padding-top: var(--safe-top);
+        padding-bottom: var(--safe-bottom);
+        padding-left: var(--safe-left);
+        padding-right: var(--safe-right);
+        overflow: hidden;
       }
     </style>
     <!--
