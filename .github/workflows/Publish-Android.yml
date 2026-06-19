@@ -303,5 +303,5 @@ jobs:
           files: |
             artifacts/*.apk
             artifacts/*.aab
-          draft: true
-          prerelease: false
+          draft: false
+          prerelease: true
