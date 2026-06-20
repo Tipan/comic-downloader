@@ -556,24 +556,53 @@ pub fn check_storage_permission() -> bool {
     }
 }
 
-/// Android: 请求「所有文件访问权限」。
-/// app 进程无法直接 startActivity(无 shell 权限)，改由前端用 intent:// URL 触发。
-/// 此命令仅返回 intent URL 供前端 window.open。
+/// Android: 请求「所有文件访问权限」，用 JNI 调 startActivity 打开系统设置页。
 #[tauri::command(async)]
 #[specta::specta]
-pub fn request_storage_permission() -> CommandResult<String> {
+pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
     #[cfg(target_os = "android")]
     {
+        use tauri::Manager;
         let pkg = "com.lanyeeee.jmcomic_downloader";
-        // 前端用 window.open 打开这个 intent URL，Android WebView 会 startActivity
-        let intent = format!(
-            "intent://settings#Intent;action=android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION;S.android.intent.extra.PACKAGE_NAME={pkg};end"
-        );
-        Ok(intent)
+        app.run_on_android_context(move |env, activity, _webview| {
+            // 构造 Intent: ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+            // = "android.app.action.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION"
+            // data = Uri.parse("package:com.lanyeeee.jmcomic_downloader")
+            let action_str = env.new_string("android.app.action.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")?;
+            let uri_str = env.new_string(format!("package:{pkg}"))?;
+
+            // Uri.parse("package:...")
+            let uri_class = env.find_class("android/net/Uri")?;
+            let uri = env.call_static_method(
+                &uri_class,
+                "parse",
+                "(Ljava/lang/String;)Landroid/net/Uri;",
+                &[(&uri_str).into()],
+            )?.l()?;
+
+            // new Intent(action, uri)
+            let intent_class = env.find_class("android/content/Intent")?;
+            let intent = env.new_object(
+                &intent_class,
+                "(Ljava/lang/String;Landroid/net/Uri;)V",
+                &[(&action_str).into(), (&uri).into()],
+            )?;
+
+            // activity.startActivity(intent)
+            env.call_method(
+                &activity,
+                "startActivity",
+                "(Landroid/content/Intent;)V",
+                &[(&intent).into()],
+            )?;
+            Ok(())
+        }).map_err(|e| CommandError::from("打开权限设置页失败", anyhow!(e.to_string())))?;
+        Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
-        Ok(String::new())
+        let _ = app;
+        Ok(())
     }
 }
 

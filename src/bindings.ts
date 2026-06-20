@@ -147,7 +147,7 @@ async checkStoragePermission() : Promise<boolean> {
     else return { status: "error", error: e  as any };
 }
 },
-async requestStoragePermission() : Promise<Result<string, CommandError>> {
+async requestStoragePermission() : Promise<Result<null, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("request_storage_permission") };
 } catch (e) {
