@@ -75,7 +75,13 @@ onMounted(async () => {
           <n-button
             type="primary"
             size="small"
-            onClick={() => commands.requestStoragePermission()}>
+            onClick={async () => {
+              const result = await commands.requestStoragePermission()
+              if (result.status === 'ok' && result.data) {
+                // Android WebView 用 window.open 打开 intent:// URL 触发 startActivity
+                window.open(result.data, '_blank')
+              }
+            }}>
             前往授权
           </n-button>
         ),

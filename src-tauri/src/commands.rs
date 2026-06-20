@@ -535,19 +535,18 @@ pub fn show_path_in_file_manager(app: AppHandle, path: &str) -> CommandResult<()
 
 /// Android: 检查是否有「所有文件访问权限」(MANAGE_EXTERNAL_STORAGE)。
 /// 写公共目录(/storage/emulated/0/Download)需要此权限，否则会 EACCES。
+/// 用实际写文件探测(create_dir_all 可能成功但 write 失败)。
 /// PC 上恒返回 true。
 #[tauri::command(async)]
 #[specta::specta]
 pub fn check_storage_permission() -> bool {
     #[cfg(target_os = "android")]
     {
-        // Android: 检查 Environment.isExternalStorageManager()
-        // 通过 am 命令无法直接查，用文件系统探测: 尝试写公共 Download 目录
-        let test_dir = std::path::Path::new("/storage/emulated/0/Download/jmcomic_test");
-        let can_write = std::fs::create_dir_all(&test_dir).is_ok();
+        let test_file = std::path::Path::new("/storage/emulated/0/Download/.jmcomic_perm_test");
+        // 尝试写文件(比 create_dir_all 更严格)
+        let can_write = std::fs::write(&test_file, b"test").is_ok();
         if can_write {
-            // 清理测试目录
-            let _ = std::fs::remove_dir(&test_dir);
+            let _ = std::fs::remove_file(&test_file);
         }
         can_write
     }
@@ -557,30 +556,24 @@ pub fn check_storage_permission() -> bool {
     }
 }
 
-/// Android: 请求「所有文件访问权限」，打开系统设置页让用户手动授权。
+/// Android: 请求「所有文件访问权限」。
+/// app 进程无法直接 startActivity(无 shell 权限)，改由前端用 intent:// URL 触发。
+/// 此命令仅返回 intent URL 供前端 window.open。
 #[tauri::command(async)]
 #[specta::specta]
-pub fn request_storage_permission() -> CommandResult<()> {
+pub fn request_storage_permission() -> CommandResult<String> {
     #[cfg(target_os = "android")]
     {
-        // 用 am start 打开「所有文件访问权限」设置页
         let pkg = "com.lanyeeee.jmcomic_downloader";
-        let uri = format!("package:{pkg}");
-        std::process::Command::new("am")
-            .args([
-                "start",
-                "-a",
-                "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
-                "-d",
-                &uri,
-            ])
-            .output()
-            .map_err(|e| CommandError::from("请求存储权限失败", anyhow!(e.to_string())))?;
-        Ok(())
+        // 前端用 window.open 打开这个 intent URL，Android WebView 会 startActivity
+        let intent = format!(
+            "intent://settings#Intent;action=android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION;S.android.intent.extra.PACKAGE_NAME={pkg};end"
+        );
+        Ok(intent)
     }
     #[cfg(not(target_os = "android"))]
     {
-        Ok(())
+        Ok(String::new())
     }
 }
 
