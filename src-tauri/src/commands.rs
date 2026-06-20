@@ -564,6 +564,7 @@ pub fn check_storage_permission() -> bool {
 pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
     #[cfg(target_os = "android")]
     {
+        use tauri_plugin_opener::OpenerExt;
         let pkg = "com.lanyeeee.jmcomic_downloader";
         let url = format!("package:{pkg}");
         app.opener()
