@@ -11,6 +11,7 @@ declare module 'vue' {
     DownloadAllFavoriteButton: typeof import('./src/components/DownloadAllFavoriteButton.vue')['default']
     FloatLabelInput: typeof import('./src/components/FloatLabelInput.vue')['default']
     IconButton: typeof import('./src/components/IconButton.vue')['default']
+    MobileDownloadBar: typeof import('./src/components/MobileDownloadBar.vue')['default']
     NA: typeof import('naive-ui')['NA']
     NAvatar: typeof import('naive-ui')['NAvatar']
     NButton: typeof import('naive-ui')['NButton']
