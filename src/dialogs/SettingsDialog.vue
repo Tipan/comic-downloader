@@ -31,7 +31,7 @@ async function showConfigInFileManager() {
 </script>
 
 <template>
-  <n-modal v-if="store.config !== undefined" v-model:show="showing">
+  <n-modal v-if="store.config !== undefined && showing" v-model:show="showing">
     <n-dialog class="w-full max-w-140 mx-auto" :showIcon="false" title="配置" @close="showing = false">
       <div class="flex flex-col">
         <span class="font-bold">下载速度</span>

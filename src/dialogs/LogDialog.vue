@@ -136,7 +136,7 @@ async function showLogsDirInFileManager() {
 </script>
 
 <template>
-  <n-modal v-model:show="showing" v-if="store.config !== undefined">
+  <n-modal v-model:show="showing" v-if="store.config !== undefined && showing">
     <n-dialog
       :showIcon="false"
       :title="`日志目录总大小：${formatedLogsDirSize}`"

@@ -53,7 +53,7 @@ function clearUsernameAndPasswordInConfig() {
 </script>
 
 <template>
-  <n-modal v-model:show="showing">
+  <n-modal v-model:show="showing" v-if="showing">
     <n-dialog
       :showIcon="false"
       title="账号登录"
