@@ -5,25 +5,15 @@ import { useMessage } from 'naive-ui'
 import ComicCard from '../components/ComicCard.vue'
 import FloatLabelInput from '../components/FloatLabelInput.vue'
 import { PhMagnifyingGlass } from '@phosphor-icons/vue'
-import { SelectProps } from 'naive-ui'
 import { useStore } from '../store.ts'
 
 const store = useStore()
 
 const message = useMessage()
 
-const sortOptions: SelectProps['options'] = [
-  { label: '最新', value: 'Latest' },
-  { label: '最多点击', value: 'View' },
-  { label: '最多图片', value: 'Picture' },
-  { label: '最多爱心', value: 'Like' },
-]
-
 const searchInput = ref<string>('')
 const searching = ref<boolean>(false)
 const sortSelected = ref<SearchSort>('Latest')
-// Android 上 n-select 的触摸事件可能不触发展开，用受控模式手动管理
-const sortSelectShowing = ref<boolean>(false)
 const searchPage = ref<number>(1)
 
 const searchPageCount = computed(() => {
@@ -81,14 +71,6 @@ async function search(keyword: string, page: number, sort: SearchSort) {
         v-model:value="searchInput"
         clearable
         @keydown.enter="search(searchInput.trim(), 1, sortSelected)" />
-      <n-select
-        class="w-40%"
-        v-model:value="sortSelected"
-        v-model:show="sortSelectShowing"
-        :options="sortOptions"
-        :show-checkmark="false"
-        size="medium"
-        @update-value="(v: SearchSort) => { sortSelectShowing = false; search(searchInput.trim(), 1, v) }" />
       <n-button
         :loading="searching"
         type="primary"
@@ -102,6 +84,14 @@ async function search(keyword: string, page: number, sort: SearchSort) {
         </template>
       </n-button>
     </n-input-group>
+    <div class="px-2">
+      <n-radio-group v-model:value="sortSelected" size="medium" @update-value="search(searchInput.trim(), 1, $event)">
+        <n-radio-button value="Latest">最新</n-radio-button>
+        <n-radio-button value="View">最多点击</n-radio-button>
+        <n-radio-button value="Picture">最多图片</n-radio-button>
+        <n-radio-button value="Like">最多爱心</n-radio-button>
+      </n-radio-group>
+    </div>
 
     <div v-if="store.searchResult !== undefined" class="flex flex-col gap-row-2 overflow-auto box-border px-2 flex-1 min-h-0">
       <ComicCard
