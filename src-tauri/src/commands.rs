@@ -564,16 +564,23 @@ pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
     {
         use tauri::Manager;
         let pkg = "com.lanyeeee.jmcomic_downloader";
-        // run_on_android_context 的闭包返回 ()，不返回 Result。
-        // 用闭包内捕获错误到外部变量。
         let error_msg = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
         let error_msg_clone = error_msg.clone();
-        app.run_on_android_context(move |env, activity, _webview| {
+
+        // run_on_android_context 在 RuntimeHandle 上，需要通过 app.runtime() 获取
+        let runtime_handle = match app.runtime() {
+            tauri::RuntimeOrDispatch::RuntimeHandle(handle) => handle,
+            _ => {
+                return Err(CommandError::from(
+                    "打开权限设置页失败",
+                    anyhow!("无法获取 runtime handle"),
+                ))
+            }
+        };
+        runtime_handle.run_on_android_context(move |env, activity, _webview| {
             let result: anyhow::Result<()> = (|| {
                 let action_str = env.new_string("android.app.action.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")?;
                 let uri_str = env.new_string(format!("package:{pkg}"))?;
-
-                // Uri.parse("package:...")
                 let uri_class = env.find_class("android/net/Uri")?;
                 let uri = env.call_static_method(
                     &uri_class,
@@ -581,16 +588,12 @@ pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
                     "(Ljava/lang/String;)Landroid/net/Uri;",
                     &[(&uri_str).into()],
                 )?.l()?;
-
-                // new Intent(action, uri)
                 let intent_class = env.find_class("android/content/Intent")?;
                 let intent = env.new_object(
                     &intent_class,
                     "(Ljava/lang/String;Landroid/net/Uri;)V",
                     &[(&action_str).into(), (&uri).into()],
                 )?;
-
-                // activity.startActivity(intent)
                 env.call_method(
                     &activity,
                     "startActivity",
