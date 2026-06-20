@@ -566,10 +566,31 @@ pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
     {
         use tauri_plugin_opener::OpenerExt;
         let pkg = "com.lanyeeee.jmcomic_downloader";
-        let url = format!("package:{pkg}");
-        app.opener()
-            .open_url(url, None::<&str>)
-            .map_err(|e| CommandError::from("打开权限设置页失败", anyhow!(e.to_string())))?;
+
+        // 方案1: 用 opener 打开应用详情页(package: URI + ACTION_VIEW)
+        // 部分设备 No Activity found，降级到方案2
+        let opener_result = app
+            .opener()
+            .open_url(format!("package:{pkg}"), None::<&str>);
+        if opener_result.is_err() {
+            // 方案2: 直接用 /system/bin/am start 打开 MANAGE_APP_ALL_FILES_ACCESS_PERMISSION 设置页
+            let uri = format!("package:{pkg}");
+            let output = std::process::Command::new("/system/bin/am")
+                .args([
+                    "start",
+                    "-a",
+                    "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
+                    "-d",
+                    &uri,
+                ])
+                .output();
+            if let Err(e) = output {
+                return Err(CommandError::from(
+                    "打开权限设置页失败",
+                    anyhow!("opener 和 am 命令都失败: {e}"),
+                ));
+            }
+        }
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
