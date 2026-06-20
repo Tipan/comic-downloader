@@ -564,34 +564,14 @@ pub fn check_storage_permission() -> bool {
 pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
     #[cfg(target_os = "android")]
     {
-        use tauri_plugin_opener::OpenerExt;
-        let pkg = "com.lanyeeee.jmcomic_downloader";
-
-        // 方案1: 用 opener 打开应用详情页(package: URI + ACTION_VIEW)
-        // 部分设备 No Activity found，降级到方案2
-        let opener_result = app
-            .opener()
-            .open_url(format!("package:{pkg}"), None::<&str>);
-        if opener_result.is_err() {
-            // 方案2: 直接用 /system/bin/am start 打开 MANAGE_APP_ALL_FILES_ACCESS_PERMISSION 设置页
-            let uri = format!("package:{pkg}");
-            let output = std::process::Command::new("/system/bin/am")
-                .args([
-                    "start",
-                    "-a",
-                    "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
-                    "-d",
-                    &uri,
-                ])
-                .output();
-            if let Err(e) = output {
-                return Err(CommandError::from(
-                    "打开权限设置页失败",
-                    anyhow!("opener 和 am 命令都失败: {e}"),
-                ));
-            }
-        }
-        Ok(())
+        let _ = &app;
+        // Android 安全模型不允许 app 进程直接 startActivity 启动系统设置页
+        // (opener 的 ACTION_VIEW 不支持自定义 action，am 命令受 SELinux 限制)。
+        // 返回错误，前端用图文提示引导用户手动到设置授权。
+        Err(CommandError::from(
+            "需要手动授权",
+            anyhow!("请到：设置 → 应用 → 漫画下载器 → 权限 → 所有文件访问权限 → 允许，然后重启 app"),
+        ))
     }
     #[cfg(not(target_os = "android"))]
     {
