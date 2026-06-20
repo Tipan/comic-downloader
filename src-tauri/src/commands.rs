@@ -556,22 +556,24 @@ pub fn check_storage_permission() -> bool {
     }
 }
 
-/// Android: 请求「所有文件访问权限」。
-/// app 进程无法直接 startActivity(需 RuntimeHandle 的 run_on_android_context，
-/// 但该方法在 sealed trait 上，无法从命令函数访问)。
-/// 改为返回错误，前端用文字提示用户手动到设置授权。
+/// Android: 请求「所有文件访问权限」，用 tauri-plugin-opener 打开应用详情页。
+/// opener.open_url 在 Android 上用 Intent(ACTION_VIEW, Uri.parse(url)) + startActivity，
+/// 传 package: URI 会打开应用详情页，用户可在里面找到「所有文件访问权限」。
 #[tauri::command(async)]
 #[specta::specta]
-pub fn request_storage_permission() -> CommandResult<()> {
+pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
     #[cfg(target_os = "android")]
     {
-        Err(CommandError::from(
-            "请手动授权",
-            anyhow!("请到：设置 → 应用 → 漫画下载器 → 权限 → 所有文件访问权限 → 允许，授权后重启 app"),
-        ))
+        let pkg = "com.lanyeeee.jmcomic_downloader";
+        let url = format!("package:{pkg}");
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| CommandError::from("打开权限设置页失败", anyhow!(e.to_string())))?;
+        Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
+        let _ = app;
         Ok(())
     }
 }
