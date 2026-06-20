@@ -556,64 +556,22 @@ pub fn check_storage_permission() -> bool {
     }
 }
 
-/// Android: 请求「所有文件访问权限」，用 JNI 调 startActivity 打开系统设置页。
+/// Android: 请求「所有文件访问权限」。
+/// app 进程无法直接 startActivity(需 RuntimeHandle 的 run_on_android_context，
+/// 但该方法在 sealed trait 上，无法从命令函数访问)。
+/// 改为返回错误，前端用文字提示用户手动到设置授权。
 #[tauri::command(async)]
 #[specta::specta]
-pub fn request_storage_permission(app: AppHandle) -> CommandResult<()> {
+pub fn request_storage_permission() -> CommandResult<()> {
     #[cfg(target_os = "android")]
     {
-        use tauri::Manager;
-        let pkg = "com.lanyeeee.jmcomic_downloader";
-        let error_msg = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
-        let error_msg_clone = error_msg.clone();
-
-        // run_on_android_context 在 RuntimeHandle 上，需要通过 app.runtime() 获取
-        let runtime_handle = match app.runtime() {
-            tauri::RuntimeOrDispatch::RuntimeHandle(handle) => handle,
-            _ => {
-                return Err(CommandError::from(
-                    "打开权限设置页失败",
-                    anyhow!("无法获取 runtime handle"),
-                ))
-            }
-        };
-        runtime_handle.run_on_android_context(move |env, activity, _webview| {
-            let result: anyhow::Result<()> = (|| {
-                let action_str = env.new_string("android.app.action.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")?;
-                let uri_str = env.new_string(format!("package:{pkg}"))?;
-                let uri_class = env.find_class("android/net/Uri")?;
-                let uri = env.call_static_method(
-                    &uri_class,
-                    "parse",
-                    "(Ljava/lang/String;)Landroid/net/Uri;",
-                    &[(&uri_str).into()],
-                )?.l()?;
-                let intent_class = env.find_class("android/content/Intent")?;
-                let intent = env.new_object(
-                    &intent_class,
-                    "(Ljava/lang/String;Landroid/net/Uri;)V",
-                    &[(&action_str).into(), (&uri).into()],
-                )?;
-                env.call_method(
-                    &activity,
-                    "startActivity",
-                    "(Landroid/content/Intent;)V",
-                    &[(&intent).into()],
-                )?;
-                Ok(())
-            })();
-            if let Err(e) = result {
-                *error_msg_clone.lock().unwrap() = Some(e.to_string());
-            }
-        });
-        if let Some(msg) = error_msg.lock().unwrap().take() {
-            return Err(CommandError::from("打开权限设置页失败", anyhow!(msg)));
-        }
-        Ok(())
+        Err(CommandError::from(
+            "请手动授权",
+            anyhow!("请到：设置 → 应用 → 漫画下载器 → 权限 → 所有文件访问权限 → 允许，授权后重启 app"),
+        ))
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = app;
         Ok(())
     }
 }

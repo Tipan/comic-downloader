@@ -69,14 +69,16 @@ onMounted(async () => {
     if (!hasPermission) {
       notification.warning({
         title: '需要存储权限',
-        content: '下载到公共目录需要「所有文件访问权限」，点击下方按钮前往授权',
+        content: '下载到公共目录需要「所有文件访问权限」。\n请手动到：设置 → 应用 → 漫画下载器 → 权限 → 所有文件访问权限 → 允许\n授权后重启 app。',
         duration: 0,
         action: () => (
           <n-button
             type="primary"
             size="small"
-            onClick={() => commands.requestStoragePermission()}>
-            前往授权
+            onClick={() => {
+              message.warning('请到系统设置 → 应用 → 漫画下载器 → 权限 → 所有文件访问权限 → 允许，授权后重启 app')
+            }}>
+            查看步骤
           </n-button>
         ),
       })
