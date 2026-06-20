@@ -22,6 +22,8 @@ const sortOptions: SelectProps['options'] = [
 const searchInput = ref<string>('')
 const searching = ref<boolean>(false)
 const sortSelected = ref<SearchSort>('Latest')
+// Android 上 n-select 的触摸事件可能不触发展开，用受控模式手动管理
+const sortSelectShowing = ref<boolean>(false)
 const searchPage = ref<number>(1)
 
 const searchPageCount = computed(() => {
@@ -82,6 +84,7 @@ async function search(keyword: string, page: number, sort: SearchSort) {
       <n-select
         class="w-40%"
         v-model:value="sortSelected"
+        v-model:show="sortSelectShowing"
         :options="sortOptions"
         :show-checkmark="false"
         size="medium"
