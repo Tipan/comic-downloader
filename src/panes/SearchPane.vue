@@ -88,7 +88,7 @@ async function search(keyword: string, page: number, sort: SearchSort) {
         :options="sortOptions"
         :show-checkmark="false"
         size="medium"
-        @update-value="search(searchInput.trim(), 1, $event)" />
+        @update-value="(v) => { sortSelectShowing = false; search(searchInput.trim(), 1, v) }" />
       <n-button
         :loading="searching"
         type="primary"
