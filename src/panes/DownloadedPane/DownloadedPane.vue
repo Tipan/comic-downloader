@@ -211,10 +211,20 @@ function useDropdown() {
     dropdownY.value = pos.y
   }
 
-  // 触屏长按：从 TouchEvent 取坐标
+  // 触屏长按：从 TouchEvent 取坐标，选中触摸点的 item
   async function showDropdownTouch(e: TouchEvent) {
     const touch = e.touches[0] || e.changedTouches[0]
     if (!touch) return
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    const selectable = el?.closest('.selectable')
+    if (selectable) {
+      const key = selectable.getAttribute('data-key')
+      if (key) {
+        const comicId = Number(key)
+        selectedIds.value.clear()
+        selectedIds.value.add(comicId)
+      }
+    }
     dropdownShowing.value = false
     await nextTick()
     dropdownShowing.value = true

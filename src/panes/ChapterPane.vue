@@ -149,10 +149,21 @@ async function onContextMenu(e: MouseEvent) {
   dropdownY.value = pos.y
 }
 
-// 触屏长按菜单：从 TouchEvent 取坐标，复用 dropdown 显示逻辑
+// 触屏长按菜单：从 TouchEvent 取坐标，选中触摸点的 item，复用 dropdown 显示逻辑
 async function onLongPress(e: TouchEvent) {
   const touch = e.touches[0] || e.changedTouches[0]
   if (!touch) return
+  // 用坐标找到触摸的 item 并选中
+  const el = document.elementFromPoint(touch.clientX, touch.clientY)
+  const selectable = el?.closest('.selectable')
+  if (selectable) {
+    const key = selectable.getAttribute('data-key')
+    if (key) {
+      const chapterId = Number(key)
+      selectedIds.value.clear()
+      selectedIds.value.add(chapterId)
+    }
+  }
   showDropdown.value = false
   await nextTick()
   showDropdown.value = true
