@@ -92,6 +92,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val hasStoragePermission: StateFlow<Boolean> = _hasStoragePermission.asStateFlow()
     fun refreshStoragePermission() {
         _hasStoragePermission.value = StoragePermissions.hasPermission(getApplication())
+        // 回到前台时同步一次已下载索引（防外部删改导致的过期状态）
+        container.refreshDownloadIndex()
     }
 
     // ---------- 导航 ----------
@@ -317,6 +319,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 回到前台时重新应用一次已下载状态（不重新联网，直接更新章节下载路径） */
+    fun refreshSelectedComicStatus() {
+        val comic = _selectedComic.value ?: return
+        viewModelScope.launch {
+            val fresh = withContext(Dispatchers.IO) { repository.applyDownloadStatus(comic) }
+            _selectedComic.value = fresh
+        }
+    }
+
     fun toggleChapter(chapterId: Long, selected: Boolean) {
         _selectedChapterIds.value =
             if (selected) _selectedChapterIds.value + chapterId
@@ -337,14 +348,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun downloadSelected() {
         val comic = _selectedComic.value ?: return
-        _selectedChapterIds.value.forEach { id ->
-            downloadManager.createDownloadTask(comic, id)
+        viewModelScope.launch {
+            // 下载前重新应用一次已下载状态（索引可能刚完成扫描），避免重复下载
+            val fresh = withContext(Dispatchers.IO) { repository.applyDownloadStatus(comic) }
+            _selectedChapterIds.value.forEach { id ->
+                downloadManager.createDownloadTask(fresh, id)
+            }
         }
     }
 
     fun downloadWholeComic() {
         val comic = _selectedComic.value ?: return
-        viewModelScope.launch { downloadManager.downloadComic(comic) }
+        viewModelScope.launch {
+            val fresh = withContext(Dispatchers.IO) { repository.applyDownloadStatus(comic) }
+            downloadManager.downloadComic(fresh)
+        }
     }
 
     fun retryDownload(comic: Comic, chapterId: Long) {

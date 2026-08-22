@@ -4,6 +4,7 @@ import com.lanyeeee.jmcomic.data.local.FileNames
 import com.lanyeeee.jmcomic.data.local.MetadataStore
 import com.lanyeeee.jmcomic.data.network.GetChapterRespData
 import com.lanyeeee.jmcomic.data.network.JmApi
+import com.lanyeeee.jmcomic.domain.model.ChapterInfo
 import com.lanyeeee.jmcomic.domain.model.Comic
 import com.lanyeeee.jmcomic.domain.model.Config
 import com.lanyeeee.jmcomic.domain.model.DownloadFormat
@@ -29,6 +30,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
@@ -67,6 +69,10 @@ class DownloadManager(
     private val configProvider: () -> Config,
     private val comicFetcher: suspend (Long) -> Comic,
     private val scope: CoroutineScope,
+    /** 有下载任务变为活动/空闲时回调（驱动前台服务保活） */
+    private val onDownloadActivityChanged: (Boolean) -> Unit = {},
+    /** 某个章节下载完成时回调（增量更新本地已下载索引） */
+    private val onChapterCompleted: ((comic: Comic, chapter: ChapterInfo, chapterDir: String, comicDir: String) -> Unit)? = null,
 ) {
     private class Semaphores(val chapter: Semaphore, val img: Semaphore)
 
@@ -78,6 +84,7 @@ class DownloadManager(
     )
 
     private val bytePerSec = AtomicLong(0)
+    private val lastActiveState = AtomicBoolean(false)
     private val _speed = MutableStateFlow("0.00MB/s")
     val speed: StateFlow<String> = _speed
 
@@ -127,6 +134,7 @@ class DownloadManager(
         val task = DownloadTask(resolved, chapter)
         tasks[chapterId] = task
         scope.launch { process(task) }
+        checkActivity()
         return true
     }
 
@@ -307,6 +315,14 @@ class DownloadManager(
         // 10. 保存章节元数据
         MetadataStore.saveChapterMetadata(chapter.copy(chapterDownloadDir = finalDir))
 
+        // 增量更新本地已下载索引（无需重新扫描）
+        onChapterCompleted?.invoke(
+            comic,
+            chapter.copy(chapterDownloadDir = finalDir),
+            finalDir,
+            comic.comicDownloadDir ?: File(finalDir).parentFile?.absolutePath ?: "",
+        )
+
         // 11. 章节间休眠（可被打断）
         if (sleepBetweenChapters(task, config) != Outcome.Completed) return Outcome.Cancelled
 
@@ -461,6 +477,17 @@ class DownloadManager(
                 downloadedImgCount = task.downloadedCount,
                 totalImgCount = task.totalCount,
             ))
+        }
+        checkActivity()
+    }
+
+    /** 检测是否有活动下载任务，变化时回调（用于前台服务启停） */
+    private fun checkActivity() {
+        val active = tasks.values.any {
+            it.state.value in setOf(DownloadTaskState.Pending, DownloadTaskState.Downloading)
+        }
+        if (lastActiveState.getAndSet(active) != active) {
+            onDownloadActivityChanged(active)
         }
     }
 

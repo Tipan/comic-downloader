@@ -1,5 +1,6 @@
 package com.lanyeeee.jmcomic.data.repository
 
+import com.lanyeeee.jmcomic.data.local.DownloadIndex
 import com.lanyeeee.jmcomic.data.local.MetadataStore
 import com.lanyeeee.jmcomic.data.network.GetComicRespData
 import com.lanyeeee.jmcomic.data.network.JmApi
@@ -28,10 +29,9 @@ import java.io.File
 class JmRepository(
     private val api: JmApi,
     private val configProvider: () -> Config,
+    private val downloadIndex: DownloadIndex,
 ) {
     private fun downloadDir(): File = File(configProvider().downloadDir)
-
-    private fun idToDirMap(): Map<Long, File> = MetadataStore.createIdToDirMap(downloadDir())
 
     // ---------- 模型转换 ----------
 
@@ -68,24 +68,24 @@ class JmRepository(
         )
     }
 
-    /** 根据本地库存给漫画打 isDownloaded / chapterDownloadDir 标记 */
+    /** 根据内存索引给漫画打 isDownloaded / chapterDownloadDir 标记（O(1)，快） */
     fun applyDownloadStatus(comic: Comic): Comic {
-        val dir = idToDirMap()[comic.id] ?: return comic
-        val chapterDirs = MetadataStore.findChapterMetadataDirs(dir)
+        val comicDir = downloadIndex.comicDir(comic.id) ?: return comic
         return comic.copy(
-            comicDownloadDir = dir.absolutePath,
+            comicDownloadDir = comicDir,
             isDownloaded = true,
             chapterInfos = comic.chapterInfos.map { ch ->
-                val cd = chapterDirs[ch.chapterId]
-                if (cd != null) ch.copy(isDownloaded = true, chapterDownloadDir = cd.absolutePath) else ch
+                val cd = downloadIndex.chapterDir(comic.id, ch.chapterId)
+                if (cd != null) ch.copy(isDownloaded = true, chapterDownloadDir = cd) else ch
             },
         )
     }
 
     private fun toComicInSearch(raw: com.lanyeeee.jmcomic.data.network.ComicInSearchRespData): ComicInSearch {
-        val dir = idToDirMap()[raw.id.toLongOrNull() ?: -1]
+        val id = raw.id.toLongOrNull() ?: 0
+        val dir = downloadIndex.comicDir(id)
         return ComicInSearch(
-            id = raw.id.toLongOrNull() ?: 0,
+            id = id,
             author = raw.author,
             name = raw.name,
             image = raw.image,
@@ -95,14 +95,15 @@ class JmRepository(
             isFavorite = raw.isFavorite,
             updateAt = raw.updateAt,
             isDownloaded = dir != null,
-            comicDownloadDir = dir?.absolutePath,
+            comicDownloadDir = dir,
         )
     }
 
     private fun toComicInFavorite(raw: com.lanyeeee.jmcomic.data.network.ComicInFavoriteRespData): ComicInFavorite {
-        val dir = idToDirMap()[raw.id.toLongOrNull() ?: -1]
+        val id = raw.id.toLongOrNull() ?: 0
+        val dir = downloadIndex.comicDir(id)
         return ComicInFavorite(
-            id = raw.id.toLongOrNull() ?: 0,
+            id = id,
             author = raw.author,
             description = raw.description,
             name = raw.name,
@@ -112,12 +113,12 @@ class JmRepository(
             category = Category(raw.category.id, raw.category.title),
             categorySub = CategorySub(raw.categorySub.id, raw.categorySub.title),
             isDownloaded = dir != null,
-            comicDownloadDir = dir?.absolutePath,
+            comicDownloadDir = dir,
         )
     }
 
     private fun toComicInWeekly(raw: com.lanyeeee.jmcomic.data.network.ComicInWeeklyRespData): ComicInWeekly {
-        val dir = idToDirMap()[raw.id]
+        val dir = downloadIndex.comicDir(raw.id)
         return ComicInWeekly(
             id = raw.id,
             author = raw.author,
@@ -130,7 +131,7 @@ class JmRepository(
             isFavorite = raw.isFavorite,
             updateAt = raw.updateAt,
             isDownloaded = dir != null,
-            comicDownloadDir = dir?.absolutePath,
+            comicDownloadDir = dir,
         )
     }
 
