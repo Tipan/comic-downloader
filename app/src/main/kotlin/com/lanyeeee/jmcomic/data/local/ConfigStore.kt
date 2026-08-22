@@ -13,7 +13,7 @@ class ConfigStore(private val context: Context) {
         val base = runCatching {
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
         }.getOrElse { "/storage/emulated/0/Download" }
-        return "$base/漫画下载"
+        return "$base/comics"
     }
 
     private fun defaultExportDir(): String {

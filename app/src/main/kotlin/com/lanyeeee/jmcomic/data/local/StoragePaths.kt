@@ -11,7 +11,7 @@ object StoragePaths {
      */
     fun treeUriToPath(uri: Uri): String? {
         return try {
-            val docId = DocumentsContract.getTreeDocumentId(uri) // 形如 "primary:Download/漫画下载"
+            val docId = DocumentsContract.getTreeDocumentId(uri) // 形如 "primary:Download/comics"
             val idx = docId.indexOf(':')
             if (idx < 0) return null
             val volume = docId.substring(0, idx)

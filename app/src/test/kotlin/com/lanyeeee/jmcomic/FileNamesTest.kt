@@ -22,7 +22,7 @@ class FileNamesTest {
     @Test
     fun chapterDownloadDir_defaultFmt() {
         val dir = FileNames.chapterDownloadDir(
-            downloadDir = "/storage/emulated/0/Download/漫画下载",
+            downloadDir = "/storage/emulated/0/Download/comics",
             dirFmt = "{comic_title}/{chapter_title}",
             params = Comic.DirFmtParams(
                 comic_id = 12345,
@@ -33,7 +33,7 @@ class FileNamesTest {
                 order = 1,
             ),
         )
-        assertEquals("/storage/emulated/0/Download/漫画下载/我的漫画/第1话 开始", dir)
+        assertEquals("/storage/emulated/0/Download/comics/我的漫画/第1话 开始", dir)
     }
 
     @Test

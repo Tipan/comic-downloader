@@ -149,7 +149,7 @@ private fun PermissionGate() {
             modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
         )
         Text(
-            "下载的漫画保存在公共下载目录（/Download/漫画下载）。\n" +
+            "下载的漫画保存在公共下载目录（/Download/comics）。\n" +
                 "请点击下方按钮，到系统设置中开启「允许访问所有文件」权限，然后返回本应用。",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,

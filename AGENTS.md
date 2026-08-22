@@ -17,6 +17,8 @@
 - 发布构建走 GitHub Actions 的 `.github/workflows/publish.yml`，push 触发
 
 ## 存储与权限
-- 默认下载目录：`/storage/emulated/0/Download/漫画下载`（需「所有文件访问」权限，
+- 默认下载目录：`/storage/emulated/0/Download/comics`（需「所有文件访问」权限，
   原生代码可直接跳转 `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` 授权页）
 - 目录格式、`元数据.json`/`章节元数据.json`/`cover.jpg` 与旧版磁盘格式保持一致，兼容已有下载数据
+- 已下载状态用落盘索引（app 私有目录 `download_index.json`）持久化：启动读入 + 目录核对，
+  下载完成/删除时增量更新，O(1) 查询不卡顿

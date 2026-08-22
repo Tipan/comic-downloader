@@ -27,8 +27,8 @@ class JmContainer(private val context: Context) {
     private val _config = MutableStateFlow(configStore.load())
     val config: StateFlow<Config> = _config
 
-    /** 已下载漫画内存索引：启动扫一次，之后 O(1) 查询，下载后增量更新 */
-    val downloadIndex = DownloadIndex()
+    /** 已下载漫画内存索引：落盘持久化，启动读入 + 目录核对 + 下载后增量更新 */
+    val downloadIndex = DownloadIndex(File(context.filesDir, "download_index.json"))
 
     private val apiDomains = listOf(
         "www.cdnzack.cc",
@@ -81,7 +81,8 @@ class JmContainer(private val context: Context) {
     )
 
     init {
-        // 启动时后台扫描一次下载目录，重建已下载索引
+        // 启动：读入落盘索引（快），随后后台做一次目录核对（只对新增漫画读元数据）
+        downloadIndex.loadFromDisk()
         refreshDownloadIndex()
     }
 
