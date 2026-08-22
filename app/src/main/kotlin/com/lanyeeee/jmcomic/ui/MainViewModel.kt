@@ -1,0 +1,380 @@
+package com.lanyeeee.jmcomic.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.lanyeeee.jmcomic.JmApplication
+import com.lanyeeee.jmcomic.data.local.StoragePermissions
+import com.lanyeeee.jmcomic.domain.model.ChapterInfo
+import com.lanyeeee.jmcomic.domain.model.Comic
+import com.lanyeeee.jmcomic.domain.model.ComicInFavorite
+import com.lanyeeee.jmcomic.domain.model.ComicInSearch
+import com.lanyeeee.jmcomic.domain.model.ComicInWeekly
+import com.lanyeeee.jmcomic.domain.model.Config
+import com.lanyeeee.jmcomic.domain.model.FavoriteFolder
+import com.lanyeeee.jmcomic.domain.model.FavoriteSort
+import com.lanyeeee.jmcomic.domain.model.SearchResp
+import com.lanyeeee.jmcomic.domain.model.SearchSort
+import com.lanyeeee.jmcomic.domain.model.UserProfile
+import com.lanyeeee.jmcomic.domain.model.WeeklyInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** 屏幕导航 */
+sealed interface Screen {
+    data object Main : Screen
+    data class ComicDetail(val comicId: Long) : Screen
+    data class Reader(val comic: Comic, val chapter: ChapterInfo) : Screen
+    data object Downloaded : Screen
+}
+
+enum class MainTab(val title: String) {
+    Search("搜索"), Favorite("收藏"), Weekly("每周必看"), Download("下载"), Mine("我的")
+}
+
+data class SearchUiState(
+    val keyword: String = "",
+    val sort: SearchSort = SearchSort.Latest,
+    val results: List<ComicInSearch> = emptyList(),
+    val page: Long = 0,
+    val total: Long = 0,
+    val loading: Boolean = false,
+    val loadingMore: Boolean = false,
+    val error: String? = null,
+)
+
+data class FavoriteUiState(
+    val folderId: Long = 0,
+    val folders: List<FavoriteFolder> = emptyList(),
+    val results: List<ComicInFavorite> = emptyList(),
+    val sort: FavoriteSort = FavoriteSort.FavoriteTime,
+    val page: Long = 0,
+    val total: Long = 0,
+    val loading: Boolean = false,
+    val loadingMore: Boolean = false,
+    val error: String? = null,
+)
+
+data class WeeklyUiState(
+    val info: WeeklyInfo? = null,
+    val categoryId: String = "",
+    val typeId: String = "",
+    val results: List<ComicInWeekly> = emptyList(),
+    val loading: Boolean = false,
+    val loadingComics: Boolean = false,
+    val error: String? = null,
+)
+
+class MainViewModel(app: Application) : AndroidViewModel(app) {
+    val container = (app as JmApplication).container
+    val repository = container.repository
+    val downloadManager = container.downloadManager
+
+    private val _config = MutableStateFlow(container.config.value)
+    val config: StateFlow<Config> = _config.asStateFlow()
+    fun updateConfig(c: Config) {
+        container.updateConfig(c)
+        _config.value = c
+    }
+
+    // ---------- 存储权限 ----------
+    private val _hasStoragePermission = MutableStateFlow(
+        StoragePermissions.hasPermission(app) &&
+            StoragePermissions.canWriteDir(java.io.File(container.config.value.downloadDir))
+    )
+    val hasStoragePermission: StateFlow<Boolean> = _hasStoragePermission.asStateFlow()
+    fun refreshStoragePermission() {
+        _hasStoragePermission.value = StoragePermissions.hasPermission(getApplication())
+    }
+
+    // ---------- 导航 ----------
+    private val _screen = MutableStateFlow<Screen>(Screen.Main)
+    val screen: StateFlow<Screen> = _screen.asStateFlow()
+    private val backStack = ArrayDeque<Screen>()
+
+    fun navigate(s: Screen) {
+        if (s == _screen.value) return
+        backStack.addLast(_screen.value)
+        _screen.value = s
+    }
+
+    fun back() {
+        if (backStack.isEmpty()) {
+            _screen.value = Screen.Main
+        } else {
+            _screen.value = backStack.removeLast()
+        }
+    }
+
+    // ---------- 搜索 ----------
+    private val _search = MutableStateFlow(SearchUiState())
+    val search: StateFlow<SearchUiState> = _search.asStateFlow()
+
+    fun setSearchKeyword(keyword: String) {
+        _search.value = _search.value.copy(keyword = keyword)
+    }
+
+    fun setSearchSort(sort: SearchSort) {
+        _search.value = _search.value.copy(sort = sort)
+        search(reset = true)
+    }
+
+    fun search(reset: Boolean) {
+        val state = _search.value
+        if (state.keyword.isBlank()) return
+        if (state.loading || state.loadingMore) return
+        val page = if (reset) 1L else state.page + 1
+        viewModelScope.launch {
+            _search.value = if (reset) state.copy(loading = true, error = null) else state.copy(loadingMore = true)
+            try {
+                val resp = withContext(Dispatchers.IO) { repository.search(state.keyword, page, state.sort) }
+                when (resp) {
+                    is SearchResp.Result -> {
+                        val result = resp.result
+                        val all = if (reset) result.content else state.results + result.content
+                        _search.value = _search.value.copy(
+                            results = all,
+                            page = page,
+                            total = result.total,
+                            loading = false,
+                            loadingMore = false,
+                        )
+                    }
+                    is SearchResp.Comic -> {
+                        _search.value = _search.value.copy(loading = false, loadingMore = false)
+                        navigate(Screen.ComicDetail(resp.comic.id))
+                    }
+                }
+            } catch (e: Exception) {
+                _search.value = _search.value.copy(
+                    loading = false, loadingMore = false, error = e.message ?: "搜索失败"
+                )
+            }
+        }
+    }
+
+    // ---------- 收藏夹 ----------
+    private val _favorite = MutableStateFlow(FavoriteUiState())
+    val favorite: StateFlow<FavoriteUiState> = _favorite.asStateFlow()
+
+    fun refreshFavorite(reset: Boolean = true) {
+        val state = _favorite.value
+        if (state.loading || state.loadingMore) return
+        val page = if (reset) 1L else state.page + 1
+        viewModelScope.launch {
+            _favorite.value = if (reset) state.copy(loading = true, error = null) else state.copy(loadingMore = true)
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    repository.getFavoriteFolder(state.folderId, page, state.sort)
+                }
+                val all = if (reset) result.list else state.results + result.list
+                _favorite.value = _favorite.value.copy(
+                    folders = result.folderList,
+                    results = all,
+                    page = page,
+                    total = result.total,
+                    loading = false,
+                    loadingMore = false,
+                )
+            } catch (e: Exception) {
+                _favorite.value = _favorite.value.copy(
+                    loading = false, loadingMore = false, error = e.message ?: "获取收藏夹失败"
+                )
+            }
+        }
+    }
+
+    fun setFavoriteFolder(folderId: Long) {
+        _favorite.value = _favorite.value.copy(folderId = folderId)
+        refreshFavorite(true)
+    }
+
+    fun setFavoriteSort(sort: FavoriteSort) {
+        _favorite.value = _favorite.value.copy(sort = sort)
+        refreshFavorite(true)
+    }
+
+    // 下载整个收藏夹进度
+    private val _batchProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    val batchProgress: StateFlow<Pair<Int, Int>?> = _batchProgress.asStateFlow()
+
+    fun downloadAllFavorites() {
+        viewModelScope.launch {
+            _batchProgress.value = 0 to 0
+            runCatching {
+                downloadManager.downloadAllFavorites { current, total ->
+                    _batchProgress.value = current to total
+                }
+            }
+            _batchProgress.value = null
+        }
+    }
+
+    // ---------- 每周必看 ----------
+    private val _weekly = MutableStateFlow(WeeklyUiState())
+    val weekly: StateFlow<WeeklyUiState> = _weekly.asStateFlow()
+
+    fun loadWeeklyInfo() {
+        if (_weekly.value.info != null) return
+        viewModelScope.launch {
+            _weekly.value = _weekly.value.copy(loading = true, error = null)
+            try {
+                val info = withContext(Dispatchers.IO) { repository.getWeeklyInfo() }
+                val categoryId = info.categories.firstOrNull()?.id ?: ""
+                val typeId = info.types.firstOrNull()?.id ?: ""
+                _weekly.value = _weekly.value.copy(info = info, loading = false)
+                if (categoryId.isNotBlank() && typeId.isNotBlank()) {
+                    loadWeekly(categoryId, typeId)
+                }
+            } catch (e: Exception) {
+                _weekly.value = _weekly.value.copy(loading = false, error = e.message ?: "获取每周必看失败")
+            }
+        }
+    }
+
+    fun loadWeekly(categoryId: String, typeId: String) {
+        viewModelScope.launch {
+            _weekly.value = _weekly.value.copy(
+                categoryId = categoryId, typeId = typeId, loadingComics = true, error = null
+            )
+            try {
+                val result = withContext(Dispatchers.IO) { repository.getWeekly(categoryId, typeId) }
+                _weekly.value = _weekly.value.copy(results = result.list, loadingComics = false)
+            } catch (e: Exception) {
+                _weekly.value = _weekly.value.copy(
+                    loadingComics = false, error = e.message ?: "获取每周必看失败"
+                )
+            }
+        }
+    }
+
+    // ---------- 本地库存 ----------
+    private val _downloaded = MutableStateFlow<List<Comic>>(emptyList())
+    val downloaded: StateFlow<List<Comic>> = _downloaded.asStateFlow()
+    private val _downloadedLoading = MutableStateFlow(false)
+    val downloadedLoading: StateFlow<Boolean> = _downloadedLoading.asStateFlow()
+
+    fun refreshDownloaded() {
+        viewModelScope.launch {
+            _downloadedLoading.value = true
+            val list = withContext(Dispatchers.IO) { repository.getDownloadedComics() }
+            _downloaded.value = list
+            _downloadedLoading.value = false
+        }
+    }
+
+    // 更新库存（联网补下新章节）进度
+    private val _updateProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    val updateProgress: StateFlow<Pair<Int, Int>?> = _updateProgress.asStateFlow()
+
+    fun updateDownloadedComics() {
+        viewModelScope.launch {
+            _updateProgress.value = 0 to 0
+            runCatching {
+                downloadManager.updateDownloadedComics(
+                    java.io.File(_config.value.downloadDir),
+                ) { current, total ->
+                    _updateProgress.value = current to total
+                }
+            }
+            _updateProgress.value = null
+        }
+    }
+
+    // ---------- 漫画详情 ----------
+    private val _selectedComic = MutableStateFlow<Comic?>(null)
+    val selectedComic: StateFlow<Comic?> = _selectedComic.asStateFlow()
+    private val _comicLoading = MutableStateFlow(false)
+    val comicLoading: StateFlow<Boolean> = _comicLoading.asStateFlow()
+    private val _comicError = MutableStateFlow<String?>(null)
+    val comicError: StateFlow<String?> = _comicError.asStateFlow()
+    private val _selectedChapterIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedChapterIds: StateFlow<Set<Long>> = _selectedChapterIds.asStateFlow()
+
+    fun loadComic(aid: Long) {
+        viewModelScope.launch {
+            _comicLoading.value = true
+            _comicError.value = null
+            try {
+                val comic = withContext(Dispatchers.IO) { repository.getComic(aid) }
+                _selectedComic.value = comic
+            } catch (e: Exception) {
+                _comicError.value = e.message ?: "获取漫画失败"
+            }
+            _comicLoading.value = false
+        }
+    }
+
+    fun toggleChapter(chapterId: Long, selected: Boolean) {
+        _selectedChapterIds.value =
+            if (selected) _selectedChapterIds.value + chapterId
+            else _selectedChapterIds.value - chapterId
+    }
+
+    fun selectAllChapters() {
+        val comic = _selectedComic.value ?: return
+        _selectedChapterIds.value = comic.chapterInfos
+            .filter { it.isDownloaded != true }
+            .map { it.chapterId }
+            .toSet()
+    }
+
+    fun clearChapterSelection() {
+        _selectedChapterIds.value = emptySet()
+    }
+
+    fun downloadSelected() {
+        val comic = _selectedComic.value ?: return
+        _selectedChapterIds.value.forEach { id ->
+            downloadManager.createDownloadTask(comic, id)
+        }
+    }
+
+    fun downloadWholeComic() {
+        val comic = _selectedComic.value ?: return
+        viewModelScope.launch { downloadManager.downloadComic(comic) }
+    }
+
+    fun retryDownload(comic: Comic, chapterId: Long) {
+        downloadManager.createDownloadTask(comic, chapterId)
+    }
+
+    // ---------- 登录 ----------
+    private val _userProfile = MutableStateFlow<UserProfile?>(null)
+    val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
+    private val _loginLoading = MutableStateFlow(false)
+    val loginLoading: StateFlow<Boolean> = _loginLoading.asStateFlow()
+    private val _loginError = MutableStateFlow<String?>(null)
+    val loginError: StateFlow<String?> = _loginError.asStateFlow()
+
+    fun login(username: String, password: String) {
+        viewModelScope.launch {
+            _loginLoading.value = true
+            _loginError.value = null
+            try {
+                val profile = withContext(Dispatchers.IO) { repository.login(username, password) }
+                _userProfile.value = profile
+                updateConfig(_config.value.copy(username = username, password = password))
+            } catch (e: Exception) {
+                _loginError.value = e.message ?: "登录失败"
+            }
+            _loginLoading.value = false
+        }
+    }
+
+    fun logout() {
+        _userProfile.value = null
+        updateConfig(_config.value.copy(username = "", password = ""))
+    }
+
+    fun tryAutoLogin() {
+        val c = _config.value
+        if (c.username.isNotBlank() && c.password.isNotBlank() && _userProfile.value == null) {
+            login(c.username, c.password)
+        }
+    }
+}

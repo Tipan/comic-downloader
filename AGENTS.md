@@ -1,7 +1,22 @@
-这原来是一个pc端漫画下载器，现在的目标是改成适用与安卓16的app。
-发布构建仍走 github actions：修改完代码后 push 到 github 触发 actions 进行构建。
-但为了快速验证调试，允许在本地使用 Android Studio 自带的模拟器和 adb 进行验证：
-- 可以本地构建 debug APK（tauri android build）并安装到本地模拟器调试
-- 可以用 adb 抓 logcat、截图、uiautomator dump 等手段定位问题
-- 不要在本地安装额外的编译/构建工具链（Rust/NDK/Android SDK 已有的可用）
-之前安装构建完的 app 会白屏，根因是前端 dist 未打包进 APK，已修复，需要继续验证直到功能正常使用
+# 项目说明
+
+这是一个禁漫天堂(JM/18comic)漫画下载器的 Android native 应用（Kotlin + Jetpack Compose）。
+核心功能：浏览（搜索/收藏夹/每周必看/本地库存）与下载，另含本地阅读器和 CBZ 导出。
+
+原 PC 版（Tauri/Rust + Vue）代码已整体移至 `legacy/` 目录，仅供参考移植算法：
+- `legacy/src-tauri/src/jm_client.rs`：JM API 协议（token 签名 / AES-256-ECB 解密）
+- `legacy/src-tauri/src/download_manager.rs`：下载状态机 + 图片反切片拼接算法
+- `legacy/src-tauri/src/types/`：Comic/ChapterInfo 等元数据 JSON 磁盘格式
+
+## 本地开发与验证
+- 构建：`./gradlew assembleDebug`（需 Android SDK，JAVA_HOME 指向 Android Studio 自带 JBR）
+- 本地模拟器（Pixel_8 AVD，Android 36）：
+  - `adb install app/build/outputs/apk/debug/app-debug.apk`
+  - 用 adb 抓 logcat、截图、uiautomator dump 定位问题
+- 单测：`./gradlew testDebugUnitTest`（重点覆盖 AES 解密、反切片、dirFmt、元数据兼容）
+- 发布构建走 GitHub Actions 的 `.github/workflows/publish.yml`，push 触发
+
+## 存储与权限
+- 默认下载目录：`/storage/emulated/0/Download/漫画下载`（需「所有文件访问」权限，
+  原生代码可直接跳转 `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` 授权页）
+- 目录格式、`元数据.json`/`章节元数据.json`/`cover.jpg` 与旧版磁盘格式保持一致，兼容已有下载数据
