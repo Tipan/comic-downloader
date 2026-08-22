@@ -1,9 +1,12 @@
 package com.lanyeeee.jmcomic.ui.components
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -26,8 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.lanyeeee.jmcomic.data.local.StoragePaths
 import com.lanyeeee.jmcomic.domain.model.ApiDomainMode
 import com.lanyeeee.jmcomic.domain.model.Config
 import com.lanyeeee.jmcomic.domain.model.DownloadFormat
@@ -38,6 +43,18 @@ import com.lanyeeee.jmcomic.ui.MainViewModel
 fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
     val config = vm.config.value
     var d by remember { mutableStateOf(config) }
+    val context = LocalContext.current
+
+    val downloadDirLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri?.let { StoragePaths.treeUriToPath(it)?.let { p -> d = d.copy(downloadDir = p) } }
+    }
+    val exportDirLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri?.let { StoragePaths.treeUriToPath(it)?.let { p -> d = d.copy(exportDir = p) } }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -82,6 +99,35 @@ fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                SettingLabel("下载目录")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = d.downloadDir,
+                        onValueChange = { d = d.copy(downloadDir = it) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = { downloadDirLauncher.launch(null) }) { Text("选择") }
+                }
+                Text(
+                    "更改后新下载使用该目录，已有文件不会移动",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                SettingLabel("导出目录（CBZ）")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = d.exportDir,
+                        onValueChange = { d = d.copy(exportDir = it) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = { exportDirLauncher.launch(null) }) { Text("选择") }
+                }
 
                 SettingLabel("API 线路")
                 DropdownSelector(

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lanyeeee.jmcomic.JmApplication
+import com.lanyeeee.jmcomic.data.local.LocalFavoritesStore
 import com.lanyeeee.jmcomic.data.local.StoragePermissions
 import com.lanyeeee.jmcomic.domain.model.ChapterInfo
 import com.lanyeeee.jmcomic.domain.model.Comic
@@ -30,6 +31,7 @@ sealed interface Screen {
     data class ComicDetail(val comicId: Long) : Screen
     data class Reader(val comic: Comic, val chapter: ChapterInfo) : Screen
     data object Downloaded : Screen
+    data object JmFavorites : Screen
 }
 
 enum class MainTab(val title: String) {
@@ -341,6 +343,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun retryDownload(comic: Comic, chapterId: Long) {
         downloadManager.createDownloadTask(comic, chapterId)
+    }
+
+    // ---------- 本地收藏（无需登录） ----------
+    private val _localFavorites = MutableStateFlow(LocalFavoritesStore.load(app))
+    val localFavorites: StateFlow<List<Comic>> = _localFavorites.asStateFlow()
+
+    fun isLocalFavorite(comicId: Long): Boolean =
+        _localFavorites.value.any { it.id == comicId }
+
+    /** 添加/取消本地收藏，返回是否已收藏 */
+    fun toggleLocalFavorite(comic: Comic): Boolean {
+        val list = _localFavorites.value.toMutableList()
+        val existing = list.indexOfFirst { it.id == comic.id }
+        if (existing >= 0) {
+            list.removeAt(existing)
+        } else {
+            list.add(0, comic)
+        }
+        _localFavorites.value = list
+        LocalFavoritesStore.save(getApplication(), list)
+        return existing < 0
+    }
+
+    fun removeLocalFavorite(comicId: Long) {
+        val list = _localFavorites.value.filterNot { it.id == comicId }
+        _localFavorites.value = list
+        LocalFavoritesStore.save(getApplication(), list)
     }
 
     // ---------- 登录 ----------

@@ -5,17 +5,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +48,7 @@ import com.lanyeeee.jmcomic.ui.screens.ComicDetailScreen
 import com.lanyeeee.jmcomic.ui.screens.DownloadScreen
 import com.lanyeeee.jmcomic.ui.screens.DownloadedScreen
 import com.lanyeeee.jmcomic.ui.screens.FavoriteScreen
+import com.lanyeeee.jmcomic.ui.screens.LocalFavoritesScreen
 import com.lanyeeee.jmcomic.ui.screens.MineScreen
 import com.lanyeeee.jmcomic.ui.screens.ReaderScreen
 import com.lanyeeee.jmcomic.ui.screens.SearchScreen
@@ -78,6 +82,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
             is Screen.ComicDetail -> ComicDetailScreen(vm, (screen as Screen.ComicDetail).comicId)
             is Screen.Reader -> ReaderScreen(vm, (screen as Screen.Reader).comic, (screen as Screen.Reader).chapter)
             is Screen.Downloaded -> DownloadedScreen(vm)
+            is Screen.JmFavorites -> FavoriteScreen(vm)
         }
     }
 }
@@ -87,11 +92,12 @@ private fun MainScaffold(vm: MainViewModel) {
     var tab by rememberSaveable { mutableStateOf(MainTab.Search) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             NavigationBar {
                 val items = listOf(
                     MainTab.Search to Icons.Filled.Search,
-                    MainTab.Favorite to Icons.Filled.Star,
+                    MainTab.Favorite to Icons.Filled.Favorite,
                     MainTab.Weekly to Icons.AutoMirrored.Filled.List,
                     MainTab.Download to JmIcons.Download,
                     MainTab.Mine to Icons.Filled.Person,
@@ -110,7 +116,7 @@ private fun MainScaffold(vm: MainViewModel) {
         Box(Modifier.padding(padding).fillMaxSize()) {
             when (tab) {
                 MainTab.Search -> SearchScreen(vm)
-                MainTab.Favorite -> FavoriteScreen(vm)
+                MainTab.Favorite -> LocalFavoritesScreen(vm)
                 MainTab.Weekly -> WeeklyScreen(vm)
                 MainTab.Download -> DownloadScreen(vm)
                 MainTab.Mine -> MineScreen(vm)
@@ -125,6 +131,7 @@ private fun PermissionGate() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,

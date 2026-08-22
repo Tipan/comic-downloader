@@ -13,10 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import com.lanyeeee.jmcomic.ui.components.JmIcons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -90,9 +91,11 @@ fun MineScreen(vm: MainViewModel) {
 
         // 功能入口
         Card(Modifier.fillMaxWidth()) {
+            MenuRow(Icons.Filled.Star, "收藏夹（需登录）", "云端收藏的漫画") { vm.navigate(Screen.JmFavorites) }
+            HorizontalDivider()
             MenuRow(JmIcons.Storage, "本地库存", "查看已下载的漫画") { vm.navigate(Screen.Downloaded) }
             HorizontalDivider()
-            MenuRow(Icons.Filled.Settings, "设置", "下载格式 / 线路 / 代理 / 并发") { showSettings = true }
+            MenuRow(Icons.Filled.Settings, "设置", "下载路径 / 格式 / 线路 / 代理 / 并发") { showSettings = true }
             HorizontalDivider()
             MenuRow(Icons.Filled.Info, "关于", "漫画下载器 · Android") { showAbout = true }
         }
