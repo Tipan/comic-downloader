@@ -97,7 +97,7 @@ fun MineScreen(vm: MainViewModel) {
             HorizontalDivider()
             MenuRow(Icons.Filled.Settings, "设置", "下载路径 / 格式 / 线路 / 代理 / 并发") { showSettings = true }
             HorizontalDivider()
-            MenuRow(Icons.Filled.Info, "关于", "漫画下载器 · Android") { showAbout = true }
+            MenuRow(Icons.Filled.Info, "关于", "comics · Android") { showAbout = true }
         }
 
         if (updateProgress != null) {
@@ -126,8 +126,8 @@ fun MineScreen(vm: MainViewModel) {
                 title = { Text("关于") },
                 text = {
                     Text(
-                        "漫画下载器\n\nAndroid native 重构版（Kotlin + Jetpack Compose）。\n" +
-                            "支持搜索、收藏夹、每周必看、本地库存、多线程下载、反切片还原、阅读器与 CBZ 导出。"
+                        "comics\n\n漫画下载器 Android native 版（Kotlin + Jetpack Compose）。\n" +
+                            "支持搜索、本地收藏、每周必看、本地库存、多线程下载、反切片还原、阅读器与 CBZ 导出。"
                     )
                 },
                 confirmButton = {

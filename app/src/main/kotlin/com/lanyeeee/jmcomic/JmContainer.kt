@@ -86,7 +86,13 @@ class JmContainer(private val context: Context) {
         refreshDownloadIndex()
     }
 
+    private var lastReconcileMs = 0L
+
     fun refreshDownloadIndex() {
+        val now = System.currentTimeMillis()
+        // 节流：避免回前台/配置变化频繁触发全量目录核对
+        if (now - lastReconcileMs < 10_000) return
+        lastReconcileMs = now
         appScope.launch {
             val dir = File(_config.value.downloadDir)
             runCatching { downloadIndex.refresh(dir) }

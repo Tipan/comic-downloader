@@ -22,6 +22,7 @@ import com.lanyeeee.jmcomic.domain.model.UserProfile
 import com.lanyeeee.jmcomic.domain.model.WeeklyInfo
 import com.lanyeeee.jmcomic.domain.model.WeeklyResult
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 仓库层：把 API 原始响应转换为领域模型，并用本地库存打 isDownloaded 标记。
@@ -154,8 +155,31 @@ class JmRepository(
             is SearchRespRaw.Comic -> SearchResp.Comic(applyDownloadStatus(convertComic(raw.comic)))
         }
 
-    suspend fun getComic(aid: Long): Comic =
-        applyDownloadStatus(convertComic(api.getComic(aid)))
+    /**
+     * 漫画详情内存缓存（短 TTL）。
+     * 打开漫画的耗时主要在拉取 `/album`（网络），缓存后几分钟内重复打开秒开。
+     * 缓存的是原始漫画数据，读取时再实时套用已下载状态（O(1)），保证状态不过期。
+     */
+    private class ComicCache {
+        data class Entry(val comic: Comic, val fetchedAt: Long)
+
+        private val map = ConcurrentHashMap<Long, Entry>()
+        private val ttl = 5 * 60 * 1000L
+
+        fun get(id: Long): Comic? =
+            map[id]?.takeIf { System.currentTimeMillis() - it.fetchedAt < ttl }?.comic
+
+        fun put(id: Long, comic: Comic) = map.put(id, Entry(comic, System.currentTimeMillis()))
+    }
+
+    private val comicCache = ComicCache()
+
+    suspend fun getComic(aid: Long): Comic {
+        val base = comicCache.get(aid) ?: convertComic(api.getComic(aid)).also {
+            comicCache.put(aid, it)
+        }
+        return applyDownloadStatus(base)
+    }
 
     suspend fun getFavoriteFolder(folderId: Long, page: Long, sort: FavoriteSort): FavoriteResult {
         val resp = api.getFavoriteFolder(folderId, page, sort)
