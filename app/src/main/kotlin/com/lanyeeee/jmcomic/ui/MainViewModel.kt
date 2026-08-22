@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lanyeeee.jmcomic.JmApplication
+import com.lanyeeee.jmcomic.data.local.AppLogger
 import com.lanyeeee.jmcomic.data.local.LocalFavoritesStore
 import com.lanyeeee.jmcomic.data.local.StoragePermissions
 import com.lanyeeee.jmcomic.domain.model.ChapterInfo
@@ -152,6 +153,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             } catch (e: Exception) {
+                AppLogger.error("VM", "搜索失败 keyword=${state.keyword}", e)
                 _search.value = _search.value.copy(
                     loading = false, loadingMore = false, error = e.message ?: "搜索失败"
                 )
@@ -183,6 +185,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     loadingMore = false,
                 )
             } catch (e: Exception) {
+                AppLogger.error("VM", "获取收藏夹失败 folder=${state.folderId}", e)
                 _favorite.value = _favorite.value.copy(
                     loading = false, loadingMore = false, error = e.message ?: "获取收藏夹失败"
                 )
@@ -233,6 +236,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     loadWeekly(categoryId, typeId)
                 }
             } catch (e: Exception) {
+                AppLogger.error("VM", "获取每周必看信息失败", e)
                 _weekly.value = _weekly.value.copy(loading = false, error = e.message ?: "获取每周必看失败")
             }
         }
@@ -247,6 +251,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val result = withContext(Dispatchers.IO) { repository.getWeekly(categoryId, typeId) }
                 _weekly.value = _weekly.value.copy(results = result.list, loadingComics = false)
             } catch (e: Exception) {
+                AppLogger.error("VM", "获取每周必看列表失败 $categoryId/$typeId", e)
                 _weekly.value = _weekly.value.copy(
                     loadingComics = false, error = e.message ?: "获取每周必看失败"
                 )
@@ -305,6 +310,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val comic = withContext(Dispatchers.IO) { repository.getComic(aid) }
                 _selectedComic.value = comic
             } catch (e: Exception) {
+                AppLogger.error("VM", "获取漫画失败 aid=$aid", e)
                 _comicError.value = e.message ?: "获取漫画失败"
             }
             _comicLoading.value = false
@@ -389,6 +395,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _userProfile.value = profile
                 updateConfig(_config.value.copy(username = username, password = password))
             } catch (e: Exception) {
+                AppLogger.error("VM", "登录失败 user=$username", e)
                 _loginError.value = e.message ?: "登录失败"
             }
             _loginLoading.value = false

@@ -465,7 +465,7 @@ class DownloadManager(
     }
 
     private fun log(msg: String) {
-        android.util.Log.e("JmDownload", msg)
+        com.lanyeeee.jmcomic.data.local.AppLogger.error("Download", msg)
     }
 
     // ---------- 批量操作 ----------

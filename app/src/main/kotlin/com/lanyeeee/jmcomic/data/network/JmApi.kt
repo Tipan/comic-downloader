@@ -157,7 +157,10 @@ class JmApi(
                 return block()
             } catch (e: IOException) {
                 attempt++
-                if (attempt >= maxAttempts) throw JmApiException(e.message ?: "网络请求失败", e)
+                if (attempt >= maxAttempts) {
+                    com.lanyeeee.jmcomic.data.local.AppLogger.error("Net", "请求失败: ${e.message}")
+                    throw JmApiException(e.message ?: "网络请求失败", e)
+                }
                 delay(baseDelayMs * attempt)
             }
         }
