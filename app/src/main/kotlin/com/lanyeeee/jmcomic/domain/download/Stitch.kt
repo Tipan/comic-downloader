@@ -1,6 +1,9 @@
 package com.lanyeeee.jmcomic.domain.download
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import com.lanyeeee.jmcomic.data.network.JmCrypto
 
 /**
@@ -62,17 +65,27 @@ object Stitch {
     }
 
     /**
-     * 将乱序分块的位图逆序拼接还原。src 是乱序图，dst 是还原图。
+     * 将乱序分块的位图逆序拼接还原。
+     *
+     * 用 Canvas 按块原生拷贝，避免整图 getPixels/setPixels 各分配一份 IntArray（
+     * 长条漫画图内存可达原图 4 倍，易 OOM）。
      */
     fun stitch(src: Bitmap, blockNum: Int): Bitmap {
         if (blockNum <= 0) return src
         val width = src.width
         val height = src.height
         val dst = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val srcPixels = IntArray(width * height)
-        src.getPixels(srcPixels, 0, width, 0, 0, width, height)
-        val dstPixels = stitchPixels(srcPixels, width, height, blockNum)
-        dst.setPixels(dstPixels, 0, width, 0, 0, width, height)
+        val canvas = Canvas(dst)
+        val paint = Paint()
+        for ((srcYStart, blockHeight, dstYStart) in computeBlocks(height, blockNum)) {
+            canvas.drawBitmap(
+                src,
+                Rect(0, srcYStart, width, srcYStart + blockHeight),
+                Rect(0, dstYStart, width, dstYStart + blockHeight),
+                paint,
+            )
+        }
+        canvas.setBitmap(null)
         return dst
     }
 }

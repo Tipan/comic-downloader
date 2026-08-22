@@ -89,7 +89,7 @@ fun DownloadedScreen(vm: MainViewModel) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
             }
             Text("本地库存 (${downloaded.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = { vm.refreshDownloaded() }) {
+            IconButton(onClick = { vm.refreshDownloaded(force = true) }) {
                 Icon(Icons.Filled.Refresh, "刷新")
             }
             IconButton(onClick = { vm.updateDownloadedComics() }, enabled = updateProgress == null) {

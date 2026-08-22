@@ -266,8 +266,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val downloaded: StateFlow<List<Comic>> = _downloaded.asStateFlow()
     private val _downloadedLoading = MutableStateFlow(false)
     val downloadedLoading: StateFlow<Boolean> = _downloadedLoading.asStateFlow()
+    private var lastLibraryVersion = -1
 
-    fun refreshDownloaded() {
+    /** 读取本地库存；索引版本没变时用缓存（避免每次打开都全量重扫） */
+    fun refreshDownloaded(force: Boolean = false) {
+        val indexVersion = container.downloadIndex.version
+        if (!force && indexVersion == lastLibraryVersion) return
+        lastLibraryVersion = indexVersion
         viewModelScope.launch {
             _downloadedLoading.value = true
             val list = withContext(Dispatchers.IO) { repository.getDownloadedComics() }

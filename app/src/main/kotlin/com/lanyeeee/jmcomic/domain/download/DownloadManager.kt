@@ -432,10 +432,13 @@ class DownloadManager(
         val bitmap = ImageUtil.decode(bytes) ?: throw IOException("解码图片失败")
         try {
             val stitched = if (blockNum > 0) Stitch.stitch(bitmap, blockNum) else bitmap
+            // 拼接后源图不再需要，先回收再编码，降低峰值内存（大图防 OOM）
+            if (stitched !== bitmap) bitmap.recycle()
             val out = ImageUtil.encode(stitched, format)
             savePath.writeBytes(out)
             if (stitched !== bitmap) stitched.recycle()
         } finally {
+            // recycle 幂等，安全
             bitmap.recycle()
         }
     }
@@ -516,9 +519,15 @@ class DownloadManager(
 
         val all = first.list.toMutableList()
         if (pageCount > 1) {
+            // 限并发拉页，避免一次性打满服务器（等价 legacy 的 Semaphore(5)）
+            val pageSem = Semaphore(5)
             val extra = coroutineScope {
                 (2..pageCount).map { page ->
-                    async { api.getFavoriteFolder(0, page.toLong(), FavoriteSort.FavoriteTime) }
+                    async {
+                        pageSem.withPermit {
+                            api.getFavoriteFolder(0, page.toLong(), FavoriteSort.FavoriteTime)
+                        }
+                    }
                 }
             }
             extra.forEach { page ->

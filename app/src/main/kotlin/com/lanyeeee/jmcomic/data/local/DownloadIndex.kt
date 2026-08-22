@@ -29,6 +29,11 @@ class DownloadIndex(private val indexFile: File) {
 
     private val state = AtomicReference(State(emptyMap(), emptyMap()))
 
+    /** 索引版本：refresh / 标记下载 / 移除 时递增，用于外部判断是否需要重新读取库存 */
+    @Volatile
+    var version: Int = 0
+        private set
+
     /** 启动时从磁盘读入索引（单文件，快，可在主线程） */
     fun loadFromDisk() {
         val loaded = runCatching {
@@ -86,7 +91,10 @@ class DownloadIndex(private val indexFile: File) {
         val next = State(newComicDirs, newChapterDirs)
         val changed = next != current
         state.set(next)
-        if (changed) persist()
+        if (changed) {
+            version++
+            persist()
+        }
     }
 
     fun comicDir(comicId: Long): String? = state.get().comicDirs[comicId]
@@ -109,7 +117,10 @@ class DownloadIndex(private val indexFile: File) {
                 chapterDirs = s.chapterDirs + (comicId to chapters),
             )
         }
-        if (after != before) persist()
+        if (after != before) {
+            version++
+            persist()
+        }
     }
 
     fun removeComic(comicId: Long) {
@@ -120,7 +131,10 @@ class DownloadIndex(private val indexFile: File) {
                 chapterDirs = s.chapterDirs - comicId,
             )
         }
-        if (after != before) persist()
+        if (after != before) {
+            version++
+            persist()
+        }
     }
 
     private fun persist() {

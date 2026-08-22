@@ -59,7 +59,8 @@ fun WeeklyScreen(vm: MainViewModel) {
                                 vm.loadWeekly(cat.id, typeId)
                             }
                         },
-                        label = { Text(cat.title) },
+                        // 分类接口的 title 为空，显示 time（如"第253期08.21 - 08.14"）
+                        label = { Text(cat.time.ifBlank { cat.title }) },
                     )
                 }
             }

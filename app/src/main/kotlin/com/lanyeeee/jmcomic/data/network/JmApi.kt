@@ -91,8 +91,8 @@ class JmApi(
 
                 override fun connectFailed(uri: URI, sa: SocketAddress, ioe: IOException) {}
             })
-        // 简易内存 Cookie 存储（登录态）
-        val cookies = mutableMapOf<String, List<okhttp3.Cookie>>()
+        // 简易内存 Cookie 存储（登录态），OkHttp 多线程访问需线程安全
+        val cookies = java.util.concurrent.ConcurrentHashMap<String, List<okhttp3.Cookie>>()
         builder.cookieJar(object : okhttp3.CookieJar {
             override fun saveFromResponse(url: HttpUrl, cookieList: List<okhttp3.Cookie>) {
                 cookies[url.host] = cookieList
