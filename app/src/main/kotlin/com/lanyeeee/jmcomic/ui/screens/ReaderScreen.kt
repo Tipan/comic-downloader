@@ -35,11 +35,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -53,7 +53,6 @@ import coil.compose.AsyncImage
 import com.lanyeeee.jmcomic.domain.model.ChapterInfo
 import com.lanyeeee.jmcomic.domain.model.Comic
 import com.lanyeeee.jmcomic.ui.MainViewModel
-import com.lanyeeee.jmcomic.ui.Screen
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
@@ -64,19 +63,25 @@ import kotlin.math.roundToInt
 private val imageExts = setOf("jpg", "png", "webp", "gif")
 
 /**
- * 阅读器：进入 5 秒或上下滑动进入全屏（隐藏顶部章节栏 + 底部进度条），
- * 单击屏幕显示这两栏。
+ * 阅读器：进入 5 秒或上下滑动进入全屏，单击唤出顶部章节栏 + 底部进度条。
+ * 按章节 key 包裹内容：切上一话/下一话时整个阅读子树完全重建，进度从头开始。
  */
 @Composable
 fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
+    key(chapter.chapterId) {
+        ReaderContent(vm, comic, chapter)
+    }
+}
+
+@Composable
+private fun ReaderContent(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
     val images = remember(comic, chapter.chapterDownloadDir) {
         chapter.chapterDownloadDir?.let { dir ->
             File(dir).listFiles { f -> f.isFile && f.extension.lowercase() in imageExts }
                 ?.sortedBy { it.name }
         } ?: emptyList()
     }
-    // 按章节 key 列表状态：切下一话/上一话时进度从头开始（不会沿用上一章位置）
-    val listState = remember(chapter.chapterId) { LazyListState() }
+    val listState = remember { LazyListState() }
     val currentIndex by remember {
         derivedStateOf { listState.firstVisibleItemIndex }
     }
@@ -95,14 +100,14 @@ fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
         }
     }
 
-    // 上下滑动进入全屏（只响应用户手势，不响应进度条的程序滚动）
+    // 上下滑动进入全屏（只响应用户手势）
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
             if (interaction is DragInteraction.Start) showControls = false
         }
     }
 
-    // 全屏：隐藏/显示系统状态栏+导航栏
+    // 全屏：隐藏/显示系统栏
     val activity = LocalContext.current as? Activity
     val controller = remember {
         activity?.window?.let { WindowInsetsControllerCompat(it, it.decorView) }
@@ -116,7 +121,6 @@ fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
-    // 离开阅读页时恢复系统栏
     DisposableEffect(Unit) {
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
@@ -153,10 +157,10 @@ fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
                         )
                     }
                     if (prevChapter != null) {
-                        TextButton(onClick = { vm.navigate(Screen.Reader(comic, prevChapter)) }) { Text("上一话") }
+                        TextButton(onClick = { vm.replaceReader(comic, prevChapter) }) { Text("上一话") }
                     }
                     if (nextChapter != null) {
-                        TextButton(onClick = { vm.navigate(Screen.Reader(comic, nextChapter)) }) { Text("下一话") }
+                        TextButton(onClick = { vm.replaceReader(comic, nextChapter) }) { Text("下一话") }
                     }
                 }
                 HorizontalDivider()
@@ -224,11 +228,5 @@ fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
                 }
             }
         }
-    }
-
-    LaunchedEffect(chapter.chapterId) {
-        // 切章节时从第一张图开始，并唤出章节栏
-        showControls = true
-        runCatching { listState.scrollToItem(0) }
     }
 }

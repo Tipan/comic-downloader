@@ -109,6 +109,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _screen.value = s
     }
 
+    /** 阅读器内切上一话/下一话：替换当前页不压栈，返回时直接回详情页 */
+    fun replaceReader(comic: Comic, chapter: ChapterInfo) {
+        val next = Screen.Reader(comic, chapter)
+        if (next == _screen.value) return
+        _screen.value = next
+    }
+
     fun back() {
         if (backStack.isEmpty()) {
             _screen.value = Screen.Main
