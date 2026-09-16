@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -74,7 +75,8 @@ fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
                 ?.sortedBy { it.name }
         } ?: emptyList()
     }
-    val listState = rememberLazyListState()
+    // 按章节 key 列表状态：切下一话/上一话时进度从头开始（不会沿用上一章位置）
+    val listState = remember(chapter.chapterId) { LazyListState() }
     val currentIndex by remember {
         derivedStateOf { listState.firstVisibleItemIndex }
     }
@@ -225,6 +227,8 @@ fun ReaderScreen(vm: MainViewModel, comic: Comic, chapter: ChapterInfo) {
     }
 
     LaunchedEffect(chapter.chapterId) {
-        listState.scrollToItem(0)
+        // 切章节时从第一张图开始，并唤出章节栏
+        showControls = true
+        runCatching { listState.scrollToItem(0) }
     }
 }

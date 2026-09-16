@@ -33,6 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +57,16 @@ private val sortLabels = mapOf(
 @Composable
 fun SearchScreen(vm: MainViewModel) {
     val state by vm.search.collectAsState()
-    val gridState = rememberLazyGridState()
+    val gridState = vm.searchGridState
+
+    // 新搜索（关键词/排序变化）滚回顶部；从详情返回时保留位置（首次/返回不重置）
+    var lastSearchEpoch by remember { mutableStateOf(vm.searchEpoch) }
+    LaunchedEffect(vm.searchEpoch) {
+        if (vm.searchEpoch != lastSearchEpoch) {
+            lastSearchEpoch = vm.searchEpoch
+            runCatching { vm.searchGridState.scrollToItem(0) }
+        }
+    }
 
     LaunchedEffect(gridState) {
         // 滚动到底部附近时加载更多

@@ -69,6 +69,7 @@ fun DownloadedScreen(vm: MainViewModel) {
 
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var exportResult by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -125,28 +126,38 @@ fun DownloadedScreen(vm: MainViewModel) {
                 Spacer(Modifier.weight(1f))
                 if (updateProgress != null) {
                     Text("更新中 ${updateProgress!!.first}/${updateProgress!!.second}", style = MaterialTheme.typography.bodySmall)
-                }
-                Button(
-                    onClick = {
-                        val comics = downloaded.filter { selectedIds.contains(it.id) }
-                        if (comics.isEmpty()) return@Button
-                        scope.launch {
-                            val dir = File(config.exportDir)
-                            var count = 0
-                            withContext(Dispatchers.IO) {
-                                for (c in comics) {
-                                    val chapters = c.chapterInfos.filter { it.isDownloaded == true && it.chapterDownloadDir != null }
-                                    count += CbzExporter.exportCbz(c, chapters, dir).size
+                } else {
+                    Button(
+                        onClick = {
+                            val comics = downloaded.filter { selectedIds.contains(it.id) }
+                            if (comics.isEmpty()) return@Button
+                            scope.launch {
+                                val dir = File(config.exportDir)
+                                var count = 0
+                                withContext(Dispatchers.IO) {
+                                    for (c in comics) {
+                                        val chapters = c.chapterInfos.filter { it.isDownloaded == true && it.chapterDownloadDir != null }
+                                        count += CbzExporter.exportCbz(c, chapters, dir).size
+                                    }
                                 }
+                                exportResult = "已导出 $count 个 CBZ 到 ${dir.absolutePath}"
                             }
-                            exportResult = "已导出 $count 个 CBZ 到 ${dir.absolutePath}"
-                        }
-                    },
-                    enabled = selectedIds.isNotEmpty(),
-                ) {
-                    Icon(JmIcons.Archive, null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("导出选中为CBZ(${selectedIds.size})")
+                        },
+                        enabled = selectedIds.isNotEmpty(),
+                    ) {
+                        Icon(JmIcons.Archive, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("导出(${selectedIds.size})")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = { confirmDelete = true },
+                        enabled = selectedIds.isNotEmpty(),
+                    ) {
+                        Icon(JmIcons.Delete, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("删除(${selectedIds.size})")
+                    }
                 }
             }
         }
@@ -159,6 +170,7 @@ fun DownloadedScreen(vm: MainViewModel) {
                 Text("暂无已下载的漫画", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> LazyColumn(
+                state = vm.downloadedListState,
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize(),
@@ -187,6 +199,27 @@ fun DownloadedScreen(vm: MainViewModel) {
             title = { Text("导出完成") },
             text = { Text(msg) },
             confirmButton = { TextButton(onClick = { exportResult = null }) { Text("好的") } },
+        )
+    }
+
+    if (confirmDelete) {
+        val toDelete = downloaded.filter { selectedIds.contains(it.id) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除漫画") },
+            text = {
+                Text("确定删除选中的 ${toDelete.size} 部漫画及其本地文件？\n此操作不可恢复。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    vm.deleteDownloadedComics(toDelete)
+                    selectedIds = emptySet()
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+            },
         )
     }
 }

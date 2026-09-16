@@ -54,10 +54,19 @@ import kotlinx.coroutines.flow.collect
 fun FavoriteScreen(vm: MainViewModel) {
     val state by vm.favorite.collectAsState()
     val batch by vm.batchProgress.collectAsState()
-    val gridState = rememberLazyGridState()
+    val gridState = vm.jmFavoritesGridState
 
     LaunchedEffect(Unit) {
         if (state.results.isEmpty() && !state.loading) vm.refreshFavorite(true)
+    }
+
+    // 排序/文件夹变化时滚回顶部；从详情返回时保留位置（首次/返回不重置）
+    var lastFavoriteEpoch by remember { mutableStateOf(vm.favoriteEpoch) }
+    LaunchedEffect(vm.favoriteEpoch) {
+        if (vm.favoriteEpoch != lastFavoriteEpoch) {
+            lastFavoriteEpoch = vm.favoriteEpoch
+            runCatching { vm.jmFavoritesGridState.scrollToItem(0) }
+        }
     }
 
     LaunchedEffect(gridState) {

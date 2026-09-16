@@ -23,6 +23,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -37,6 +40,15 @@ fun WeeklyScreen(vm: MainViewModel) {
 
     LaunchedEffect(Unit) {
         vm.loadWeeklyInfo()
+    }
+
+    // 切换分类/类型时滚回顶部；从详情返回时保留位置（首次/返回不重置）
+    var lastWeeklyEpoch by remember { mutableStateOf(vm.weeklyEpoch) }
+    LaunchedEffect(vm.weeklyEpoch) {
+        if (vm.weeklyEpoch != lastWeeklyEpoch) {
+            lastWeeklyEpoch = vm.weeklyEpoch
+            runCatching { vm.weeklyGridState.scrollToItem(0) }
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -94,9 +106,15 @@ fun WeeklyScreen(vm: MainViewModel) {
             state.error != null && state.results.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.error ?: "", color = MaterialTheme.colorScheme.error)
             }
+            state.loadingComics && state.results.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            state.results.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("该分类/类型本期暂无内容，试试切换", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             else -> LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                state = rememberLazyGridState(),
+                state = vm.weeklyGridState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

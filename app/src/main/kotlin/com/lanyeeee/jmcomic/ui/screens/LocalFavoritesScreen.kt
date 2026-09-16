@@ -77,7 +77,7 @@ fun LocalFavoritesScreen(vm: MainViewModel) {
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                state = rememberLazyGridState(),
+                state = vm.localFavoritesGridState,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

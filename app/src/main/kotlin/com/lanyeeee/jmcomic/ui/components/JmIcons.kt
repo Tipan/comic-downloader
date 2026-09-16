@@ -44,6 +44,12 @@ object JmIcons {
             "M2,20h20v-4H2V20zM4,17h2v2H4V17zM2,4v4h20V4H2zM6,7H4V5h2V7zM2,14h20v-4H2V14zM4,11h2v2H4V11z",
         )
     }
+    val Delete: ImageVector by lazy {
+        icon(
+            "Delete",
+            "M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V7H6V19zM19,4h-3.5l-1,-1h-5l-1,1H5v2h14V4z",
+        )
+    }
 
     private fun icon(name: String, pathData: String): ImageVector {
         val nodes = PathParser().parsePathString(pathData).toNodes()

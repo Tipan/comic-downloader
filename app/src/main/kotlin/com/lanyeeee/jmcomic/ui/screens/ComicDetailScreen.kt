@@ -128,7 +128,7 @@ fun ComicDetailScreen(vm: MainViewModel, comicId: Long) {
             }
             comic != null -> {
                 val c = comic!!
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(state = vm.comicDetailListState, modifier = Modifier.fillMaxSize()) {
                     item { ComicHeader(c) }
                     item {
                         Row(
@@ -177,7 +177,7 @@ fun ComicDetailScreen(vm: MainViewModel, comicId: Long) {
                             progress = progresses[chapter.chapterId],
                             selected = selected.contains(chapter.chapterId),
                             onToggle = { sel -> vm.toggleChapter(chapter.chapterId, sel) },
-                            onClick = { vm.navigate(Screen.Reader(c, chapter)) },
+                            onClick = { vm.navigate(Screen.Reader(c, vm.readerChapter(c, chapter))) },
                         )
                     }
                     item { Spacer(Modifier.height(16.dp)) }

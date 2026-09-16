@@ -89,7 +89,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
 
 @Composable
 private fun MainScaffold(vm: MainViewModel) {
-    var tab by rememberSaveable { mutableStateOf(MainTab.Search) }
+    val tab by vm.currentTab.collectAsState()
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -105,7 +105,7 @@ private fun MainScaffold(vm: MainViewModel) {
                 items.forEach { (t, icon) ->
                     NavigationBarItem(
                         selected = tab == t,
-                        onClick = { tab = t },
+                        onClick = { vm.setCurrentTab(t) },
                         icon = { Icon(icon, contentDescription = t.title) },
                         label = { Text(t.title) },
                     )

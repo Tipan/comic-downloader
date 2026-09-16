@@ -1,6 +1,8 @@
 package com.lanyeeee.jmcomic.ui
 
 import android.app.Application
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lanyeeee.jmcomic.JmApplication
@@ -115,6 +117,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- 列表滚动位置（从详情页返回时恢复，避免回到顶部） ----------
+    val searchGridState = LazyGridState()
+    val weeklyGridState = LazyGridState()
+    val localFavoritesGridState = LazyGridState()
+    val jmFavoritesGridState = LazyGridState()
+    val downloadedListState = LazyListState()
+    val comicDetailListState = LazyListState()
+
+    // 各列表"重置轮次"：搜索/排序/分类变化时 +1，界面据此滚回顶部
+    private var _searchEpoch = 0
+    val searchEpoch: Int get() = _searchEpoch
+    private var _favoriteEpoch = 0
+    val favoriteEpoch: Int get() = _favoriteEpoch
+    private var _weeklyEpoch = 0
+    val weeklyEpoch: Int get() = _weeklyEpoch
+
+    // 当前底部 tab（从详情页返回时保留，不重置回搜索）
+    private val _currentTab = MutableStateFlow(MainTab.Search)
+    val currentTab: StateFlow<MainTab> = _currentTab.asStateFlow()
+    fun setCurrentTab(tab: MainTab) {
+        if (_currentTab.value != tab) _currentTab.value = tab
+    }
+
     // ---------- 搜索 ----------
     private val _search = MutableStateFlow(SearchUiState())
     val search: StateFlow<SearchUiState> = _search.asStateFlow()
@@ -133,6 +158,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (state.keyword.isBlank()) return
         if (state.loading || state.loadingMore) return
         val page = if (reset) 1L else state.page + 1
+        if (reset) _searchEpoch++
         viewModelScope.launch {
             _search.value = if (reset) state.copy(loading = true, error = null) else state.copy(loadingMore = true)
             try {
@@ -171,6 +197,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val state = _favorite.value
         if (state.loading || state.loadingMore) return
         val page = if (reset) 1L else state.page + 1
+        if (reset) _favoriteEpoch++
         viewModelScope.launch {
             _favorite.value = if (reset) state.copy(loading = true, error = null) else state.copy(loadingMore = true)
             try {
@@ -231,11 +258,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _weekly.value = _weekly.value.copy(loading = true, error = null)
             try {
                 val info = withContext(Dispatchers.IO) { repository.getWeeklyInfo() }
-                val categoryId = info.categories.firstOrNull()?.id ?: ""
-                val typeId = info.types.firstOrNull()?.id ?: ""
                 _weekly.value = _weekly.value.copy(info = info, loading = false)
-                if (categoryId.isNotBlank() && typeId.isNotBlank()) {
-                    loadWeekly(categoryId, typeId)
+                // 自动选中一个有内容的 (分类, 类型) 组合（最新一期常为空）
+                val initial = withContext(Dispatchers.IO) { findFirstNonEmptyWeekly(info) }
+                if (initial != null) {
+                    loadWeekly(initial.first, initial.second)
+                } else {
+                    val c = info.categories.firstOrNull()?.id ?: ""
+                    val t = info.types.firstOrNull()?.id ?: ""
+                    if (c.isNotBlank() && t.isNotBlank()) loadWeekly(c, t)
                 }
             } catch (e: Exception) {
                 AppLogger.error("VM", "获取每周必看信息失败", e)
@@ -244,7 +275,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 找最新一期有内容的 (分类, 类型)，限制尝试次数避免打太多请求 */
+    private suspend fun findFirstNonEmptyWeekly(info: WeeklyInfo): Pair<String, String>? {
+        var attempts = 0
+        for (cat in info.categories.take(3)) {
+            for (t in info.types) {
+                if (++attempts > 8) return null
+                val r = runCatching { repository.getWeekly(cat.id, t.id) }.getOrNull() ?: continue
+                if (r.list.isNotEmpty()) return cat.id to t.id
+            }
+        }
+        return null
+    }
+
     fun loadWeekly(categoryId: String, typeId: String) {
+        _weeklyEpoch++
         viewModelScope.launch {
             _weekly.value = _weekly.value.copy(
                 categoryId = categoryId, typeId = typeId, loadingComics = true, error = null
@@ -278,6 +323,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val list = withContext(Dispatchers.IO) { repository.getDownloadedComics() }
             _downloaded.value = list
             _downloadedLoading.value = false
+        }
+    }
+
+    /** 删除本地已下载的漫画（只删下载目录内的目录，安全） */
+    fun deleteDownloadedComics(comics: List<Comic>) {
+        val downloadDir = java.io.File(_config.value.downloadDir).absolutePath
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                for (comic in comics) {
+                    val dir = comic.comicDownloadDir
+                    if (dir != null && dir.startsWith(downloadDir)) {
+                        runCatching { java.io.File(dir).deleteRecursively() }
+                    }
+                    container.downloadIndex.removeComic(comic.id)
+                }
+            }
+            refreshDownloaded(force = true)
         }
     }
 
@@ -372,6 +434,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun retryDownload(comic: Comic, chapterId: Long) {
         downloadManager.createDownloadTask(comic, chapterId)
+    }
+
+    /** 打开阅读器前从实时索引解析章节下载路径（刚下载完立刻进入也能读到图） */
+    fun readerChapter(comic: Comic, chapter: ChapterInfo): ChapterInfo {
+        val cd = container.downloadIndex.chapterDir(comic.id, chapter.chapterId)
+        return if (cd != null) chapter.copy(isDownloaded = true, chapterDownloadDir = cd) else chapter
     }
 
     // ---------- 本地收藏（无需登录） ----------
