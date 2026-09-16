@@ -372,6 +372,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val selectedChapterIds: StateFlow<Set<Long>> = _selectedChapterIds.asStateFlow()
 
     fun loadComic(aid: Long) {
+        // 已加载同一本漫画时不重复请求：返回详情时不再重新拉取，
+        // 保持章节列表滚动位置稳定（仅刷新已下载状态）
+        if (_selectedComic.value?.id == aid) {
+            refreshSelectedComicStatus()
+            return
+        }
         viewModelScope.launch {
             _comicLoading.value = true
             _comicError.value = null
